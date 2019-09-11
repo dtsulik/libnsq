@@ -88,6 +88,7 @@ void nsq_ready(struct Buffer *buf, int count);
 void nsq_finish(struct Buffer *buf, const char *id);
 void nsq_requeue(struct Buffer *buf, const char *id, int timeout_ms);
 void nsq_nop(struct Buffer *buf);
+void nsq_pub(struct Buffer *buf, char *topic, int size, char *msg);
 
 struct NSQMessage {
     int64_t timestamp;
