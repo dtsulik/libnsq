@@ -1,4 +1,5 @@
 #include "nsq.h"
+#include <pthread.h>
 
 #ifdef DEBUG
 #define _DEBUG(...) fprintf(stdout, __VA_ARGS__)
@@ -6,13 +7,14 @@
 #define _DEBUG(...) do {;} while (0)
 #endif
 
+int sent_counter = 0;
+int rcv_counter = 0;
+
 static void message_handler(struct NSQReader *rdr, struct NSQDConnection *conn, struct NSQMessage *msg, void *ctx)
 {
     _DEBUG("%s: %lld, %d, %s, %lu, %.*s\n", __FUNCTION__, msg->timestamp, msg->attempts, msg->id,
         msg->body_length, (int)msg->body_length, msg->body);
     int ret = 0;
-    //TestNsqMsgContext * test_ctx = (TestNsqMsgContext *)ctx;
-    //int ret= ctx->process(msg->body, msg->body_length);
 
     buffer_reset(conn->command_buf);
 
@@ -26,25 +28,70 @@ static void message_handler(struct NSQReader *rdr, struct NSQDConnection *conn, 
     buffer_reset(conn->command_buf);
     nsq_ready(conn->command_buf, rdr->max_in_flight);
     buffered_socket_write_buffer(conn->bs, conn->command_buf);
+    rcv_counter++;
+    printf("recvd %d\n", rcv_counter);
 
     free_nsq_message(msg);
 }
 
+static void response_handler(struct NSQPublisher *pub, struct NSQDConnection *conn, struct NSQMessage *msg, void *ctx)
+{
+    _DEBUG("%s: %lld, %d, %s, %lu, %.*s\n", __FUNCTION__, msg->timestamp, msg->attempts, msg->id,
+        msg->body_length, (int)msg->body_length, msg->body);
+
+    free_nsq_message(msg);
+}
+
+void *writer(void *p){
+    struct NSQPublisher *pub = (struct NSQPublisher *) p;
+    struct NSQDConnection *conn;
+
+    sleep(4);
+
+    printf("hello from writer\n");
+
+    LL_FOREACH(pub->conns, conn) {
+        printf("%p\n", conn);
+        if(conn){
+            while(1){
+                sent_counter++;
+                buffer_reset(conn->command_buf);
+                nsq_pub(conn->command_buf, "test", 8, "asdfasdf");
+                buffered_socket_write_buffer(conn->bs, conn->command_buf);
+                printf("sent %d\n", sent_counter);
+            }
+            break;
+        }
+    }
+
+    return NULL;
+}
+
 int main(int argc, char **argv)
 {
-    struct NSQReader *rdr;
+    struct NSQPublisher *pub;
+    struct NSQPublisher *rdr;
     struct ev_loop *loop;
-    void *ctx = NULL; //(void *)(new TestNsqMsgContext());
+    void *ctx = NULL;
 
     loop = ev_default_loop(0);
+
     rdr = new_nsq_reader(loop, "test", "ch", (void *)ctx,
         NULL, NULL, NULL, message_handler);
-#ifdef NSQD_STANDALONE
-    nsq_reader_connect_to_nsqd(rdr, "127.0.0.1", 4150);
-    nsq_reader_connect_to_nsqd(rdr, "127.0.0.1", 14150);
-#else
-    nsq_reader_add_nsqlookupd_endpoint(rdr, "127.0.0.1", 4161);
-#endif
+
+    nsq_reader_connect_to_nsqd(rdr, "192.168.122.250", 4150);
+
+    // pub = new_nsq_publisher(loop, "test", "ch", (void *)ctx,
+    //     NULL, NULL, NULL, response_handler);
+
+    // nsq_publisher_connect_to_nsqd(pub, "192.168.122.250", 4150);
+
+    pthread_t t;
+    pthread_attr_t t_attr;
+    pthread_attr_init(&t_attr);
+    pthread_attr_setdetachstate(&t_attr, PTHREAD_CREATE_DETACHED);
+    // pthread_create(&t, &t_attr, writer, pub);
+
     nsq_run(loop);
 
     return 0;

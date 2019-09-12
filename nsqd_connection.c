@@ -127,6 +127,50 @@ struct NSQDConnection *new_nsqd_connection(struct ev_loop *loop, const char *add
     return conn;
 }
 
+struct NSQDConnection *new_nsqd_pub_connection(struct ev_loop *loop, const char *address, int port,
+    void (*connect_callback)(struct NSQDConnection *conn, void *arg),
+    void (*close_callback)(struct NSQDConnection *conn, void *arg),
+    void (*msg_callback)(struct NSQDConnection *conn, struct NSQMessage *msg, void *arg),
+    struct NSQReaderCfg *cfg,
+    void *arg)
+{
+    struct NSQDConnection *conn;
+
+    conn = (struct NSQDConnection *)malloc(sizeof(struct NSQDConnection));
+    conn->address = strdup(address);
+    conn->port = port;
+    if(cfg == NULL){
+        conn->command_buf = new_buffer(DEFAULT_COMMAND_BUF_LEN, DEFAULT_COMMAND_BUF_CAPACITY);
+    }else{
+        conn->command_buf = new_buffer(cfg->command_buf_len, cfg->command_buf_capacity);
+    }
+    conn->current_msg_size = 0;
+    conn->connect_callback = connect_callback;
+    conn->close_callback = close_callback;
+    conn->msg_callback = msg_callback;
+    conn->arg = arg;
+    conn->loop = loop;
+    conn->reconnect_timer = NULL;
+
+    if(cfg == NULL){
+        conn->bs = new_buffered_socket(loop, address, port,
+            DEFAULT_READ_BUF_LEN, DEFAULT_READ_BUF_CAPACITY,
+            DEFAULT_WRITE_BUF_LEN, DEFAULT_WRITE_BUF_CAPACITY,
+            nsqd_connection_connect_cb, nsqd_connection_close_cb,
+            NULL, NULL, nsqd_connection_error_cb,
+            conn);
+    }else{
+        conn->bs = new_buffered_socket(loop, address, port,
+            cfg->read_buf_len, cfg->read_buf_capacity,
+            cfg->write_buf_len, cfg->write_buf_capacity,
+            nsqd_connection_connect_cb, nsqd_connection_close_cb,
+            NULL, NULL, nsqd_connection_error_cb,
+            conn);
+    }
+
+    return conn;
+}
+
 void free_nsqd_connection(struct NSQDConnection *conn)
 {
     if (conn) {

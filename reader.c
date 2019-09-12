@@ -8,14 +8,6 @@
 #define _DEBUG(...) do {;} while (0)
 #endif
 
-#define DEFAULT_LOOKUPD_INTERVAL     5.
-#define DEFAULT_COMMAND_BUF_LEN      4096
-#define DEFAULT_COMMAND_BUF_CAPACITY 4096
-#define DEFAULT_READ_BUF_LEN         16 * 1024
-#define DEFAULT_READ_BUF_CAPACITY    16 * 1024
-#define DEFAULT_WRITE_BUF_LEN        16 * 1024
-#define DEFAULT_WRITE_BUF_CAPACITY   16 * 1024
-
 static void nsq_reader_connect_cb(struct NSQDConnection *conn, void *arg)
 {
     struct NSQReader *rdr = (struct NSQReader *)arg;
@@ -205,11 +197,12 @@ int nsq_reader_add_nsqlookupd_endpoint(struct NSQReader *rdr, const char *addres
 
 int nsq_reader_connect_to_nsqd(struct NSQReader *rdr, const char *address, int port)
 {
-    struct NSQDConnection *conn;
+    struct NSQDConnection *conn = NULL;
     int rc;
 
     conn = new_nsqd_connection(rdr->loop, address, port,
         nsq_reader_connect_cb, nsq_reader_close_cb, nsq_reader_msg_cb, rdr);
+
     rc = nsqd_connection_connect(conn);
     if (rc > 0) {
         LL_APPEND(rdr->conns, conn);
@@ -222,8 +215,3 @@ int nsq_reader_connect_to_nsqd(struct NSQReader *rdr, const char *address, int p
     return rc;
 }
 
-void nsq_run(struct ev_loop *loop)
-{
-    srand(time(NULL));
-    ev_loop(loop, 0);
-}

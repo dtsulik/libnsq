@@ -3,8 +3,8 @@ DESTDIR=
 LIBDIR=${PREFIX}/lib
 INCDIR=${PREFIX}/include
 
-CFLAGS+=-g -Wall -O2 -DDEBUG -fPIC
-LIBS=-lev -levbuffsock -lcurl
+CFLAGS+=-g -Wall -O2 -DDEBUG -fPIC -pthread
+LIBS=-lev -levbuffsock -lcurl -lpthread
 AR=ar
 AR_FLAGS=rc
 RANLIB=ranlib
@@ -23,11 +23,11 @@ libnsq: libnsq.a
 %.o: %.c
 	$(CC) -o $@ -c $< $(CFLAGS)
 
-libnsq.a: command.o reader.o nsqd_connection.o http.o message.o nsqlookupd.o json.o
+libnsq.a: command.o publisher.o reader.o nsqd_connection.o http.o message.o nsqlookupd.o json.o
 	$(AR) $(AR_FLAGS) $@ $^
 	$(RANLIB) $@
 
-test: test-nsqd test-lookupd
+test: test-nsqd
 
 test-nsqd.o: test.c
 	$(CC) -o $@ -c $< $(CFLAGS) -DNSQD_STANDALONE
