@@ -71,8 +71,12 @@ struct NSQPublisher {
     struct ev_loop *loop;
     struct NSQPublisherCfg *cfg;
     void *httpc;
+    void *success_callback_arg;
+    void *error_callback_arg;
     void (*connect_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn);
     void (*close_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn);
+    void (*success_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn, void *arg);
+    void (*error_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn, void *arg);
     void (*msg_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn, struct NSQMessage *msg, void *ctx);
 };
 
@@ -91,6 +95,8 @@ struct NSQPublisher *new_nsq_publisher(struct ev_loop *loop, const char *topic, 
     struct NSQPublisherCfg *cfg,
     void (*connect_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn),
     void (*close_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn),
+    void (*success_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn, void *arg),
+    void (*error_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn, void *arg),
     void (*msg_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn, struct NSQMessage *msg, void *ctx));
 void free_nsq_publisher(struct NSQPublisher *pub);
 int nsq_publisher_connect_to_nsqd(struct NSQPublisher *pub, const char *address, int port);
@@ -99,8 +105,6 @@ int nsq_publisher_add_nsqlookupd_endpoint(struct NSQPublisher *pub, const char *
 void nsq_publisher_set_loop(struct NSQPublisher *pub, struct ev_loop *loop);
 
 void nsq_run(struct ev_loop *loop);
-
-
 
 struct NSQDConnection {
     char *address;
@@ -114,6 +118,8 @@ struct NSQDConnection {
     ev_timer *reconnect_timer;
     void (*connect_callback)(struct NSQDConnection *conn, void *arg);
     void (*close_callback)(struct NSQDConnection *conn, void *arg);
+    void (*success_callback)(struct NSQDConnection *conn, void *arg);
+    void (*error_callback)(struct NSQDConnection *conn, void *arg);
     void (*msg_callback)(struct NSQDConnection *conn, struct NSQMessage *msg, void *arg);
     void *arg;
     struct NSQDConnection *next;
@@ -128,6 +134,8 @@ struct NSQDConnection *new_nsqd_connection(struct ev_loop *loop, const char *add
 struct NSQDConnection *new_nsqd_pub_connection(struct ev_loop *loop, const char *address, int port,
     void (*connect_callback)(struct NSQDConnection *conn, void *arg),
     void (*close_callback)(struct NSQDConnection *conn, void *arg),
+    void (*success_callback)(struct NSQDConnection *conn, void *arg),
+    void (*error_callback)(struct NSQDConnection *conn, void *arg),
     void (*msg_callback)(struct NSQDConnection *conn, struct NSQMessage *msg, void *arg),
     struct NSQReaderCfg *cfg,
     void *arg);

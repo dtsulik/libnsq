@@ -42,11 +42,26 @@ static void response_handler(struct NSQPublisher *pub, struct NSQDConnection *co
     free_nsq_message(msg);
 }
 
+static void pub_error_handler(struct NSQPublisher *pub, struct NSQDConnection *conn, void *arg)
+{
+    _DEBUG("%s: handle this\n", __FUNCTION__);
+
+}
+
+static void pub_success_handler(struct NSQPublisher *pub, struct NSQDConnection *conn, void *arg)
+{
+    _DEBUG("%s: handle this\n", __FUNCTION__);
+
+}
+
 void *writer(void *p){
     struct NSQPublisher *pub = (struct NSQPublisher *) p;
     struct NSQDConnection *conn;
 
     sleep(4);
+    struct timespec spc;
+    spc.tv_sec = 0;
+    spc.tv_nsec = 500000000;
 
     printf("hello from writer\n");
 
@@ -54,13 +69,29 @@ void *writer(void *p){
         printf("%p\n", conn);
         if(conn){
             while(1){
+                // buffer_reset(conn->command_buf);
+                // nsq_pub(conn->command_buf, "test", 8, "asdfasdf");
+                // buffered_socket_write_buffer(conn->bs, conn->command_buf);
+                // printf("sent %d\n", sent_counter);
+
                 sent_counter++;
-                buffer_reset(conn->command_buf);
-                nsq_pub(conn->command_buf, "test", 8, "asdfasdf");
-                buffered_socket_write_buffer(conn->bs, conn->command_buf);
-                printf("sent %d\n", sent_counter);
+                char b[1024];
+                char topic[] = {"test"};
+                char msg[] = {"test1234"};
+                int size = 8;
+                size_t n;
+
+                n = sprintf(b, "asdfasdfPUB %s\n", topic);
+                uint32_t ordered = htobe32(size);
+                memcpy(b + n, &ordered, 4);
+                n += 4;
+                memcpy(b + n, msg, size);
+                n += size;
+                int rc = send(conn->bs->fd, b, n, 0);
+                printf("sent %d %d b %s\n", sent_counter, rc, b);
+                nanosleep(&spc, NULL);
+                break;
             }
-            break;
         }
     }
 
@@ -76,21 +107,21 @@ int main(int argc, char **argv)
 
     loop = ev_default_loop(0);
 
-    rdr = new_nsq_reader(loop, "test", "ch", (void *)ctx,
-        NULL, NULL, NULL, message_handler);
+    // rdr = new_nsq_reader(loop, "test", "ch", (void *)ctx,
+    //     NULL, NULL, NULL, message_handler);
 
-    nsq_reader_connect_to_nsqd(rdr, "192.168.122.250", 4150);
+    // nsq_reader_connect_to_nsqd(rdr, "192.168.100.9", 4150);
 
-    // pub = new_nsq_publisher(loop, "test", "ch", (void *)ctx,
-    //     NULL, NULL, NULL, response_handler);
+    pub = new_nsq_publisher(loop, "test", "ch", (void *)ctx,
+        NULL, NULL, NULL, pub_success_handler, pub_error_handler, response_handler);
 
-    // nsq_publisher_connect_to_nsqd(pub, "192.168.122.250", 4150);
+    nsq_publisher_connect_to_nsqd(pub, "192.168.100.9", 4150);
 
     pthread_t t;
     pthread_attr_t t_attr;
     pthread_attr_init(&t_attr);
     pthread_attr_setdetachstate(&t_attr, PTHREAD_CREATE_DETACHED);
-    // pthread_create(&t, &t_attr, writer, pub);
+    pthread_create(&t, &t_attr, writer, pub);
 
     nsq_run(loop);
 

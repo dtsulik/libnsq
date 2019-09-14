@@ -19,6 +19,28 @@ static void nsq_publisher_connect_cb(struct NSQDConnection *conn, void *arg)
     }
 }
 
+static void nsq_publisher_error_cb(struct NSQDConnection *conn, void *arg)
+{
+    struct NSQPublisher *pub = (struct NSQPublisher *)arg;
+
+    _DEBUG("%s: %p\n", __FUNCTION__, pub);
+
+    if (pub->error_callback) {
+        pub->error_callback(pub, conn, pub->error_callback_arg);
+    }
+}
+
+static void nsq_publisher_success_cb(struct NSQDConnection *conn, void *arg)
+{
+    struct NSQPublisher *pub = (struct NSQPublisher *)arg;
+
+    _DEBUG("%s: %p\n", __FUNCTION__, pub);
+
+    if (pub->success_callback) {
+        pub->success_callback(pub, conn, pub->success_callback_arg);
+    }
+}
+
 static void nsq_publisher_msg_cb(struct NSQDConnection *conn, struct NSQMessage *msg, void *arg)
 {
     struct NSQPublisher *pub = (struct NSQPublisher *)arg;
@@ -103,6 +125,8 @@ struct NSQPublisher *new_nsq_publisher(struct ev_loop *loop, const char *topic, 
     struct NSQPublisherCfg *cfg,
     void (*connect_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn),
     void (*close_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn),
+    void (*success_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn, void *arg),
+    void (*error_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn, void *arg),
     void (*msg_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn, struct NSQMessage *msg, void *ctx))
 {
     struct NSQPublisher *pub;
@@ -133,6 +157,8 @@ struct NSQPublisher *new_nsq_publisher(struct ev_loop *loop, const char *topic, 
     pub->connect_callback = connect_callback;
     pub->close_callback = close_callback;
     pub->msg_callback = msg_callback;
+    pub->success_callback = success_callback;
+    pub->error_callback = error_callback;
     pub->ctx = ctx;
     pub->conns = NULL;
     pub->lookupd = NULL;
@@ -192,7 +218,7 @@ int nsq_publisher_connect_to_nsqd(struct NSQPublisher *pub, const char *address,
     int rc;
 
     conn = new_nsqd_pub_connection(pub->loop, address, port,
-        nsq_publisher_connect_cb, nsq_publisher_close_cb, nsq_publisher_msg_cb, NULL, pub);
+        nsq_publisher_connect_cb, nsq_publisher_close_cb, nsq_publisher_success_cb, nsq_publisher_error_cb, nsq_publisher_msg_cb, NULL, pub);
 
     rc = nsqd_connection_connect(conn);
     if (rc > 0) {

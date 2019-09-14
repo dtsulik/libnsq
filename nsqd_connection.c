@@ -63,6 +63,10 @@ static void nsqd_connection_read_data(struct BufferedSocket *buffsock, void *arg
                 buffer_reset(conn->command_buf);
                 nsq_nop(conn->command_buf);
                 buffered_socket_write_buffer(conn->bs, conn->command_buf);
+            }else if (strncmp(conn->current_data, "OK", 2) == 0) {
+                if(conn->success_callback){
+                    conn->success_callback(conn, conn->arg);
+                }
             }
             break;
         case NSQ_FRAME_TYPE_MESSAGE:
@@ -71,6 +75,12 @@ static void nsqd_connection_read_data(struct BufferedSocket *buffsock, void *arg
                 conn->msg_callback(conn, msg, conn->arg);
             }
             break;
+        case NSQ_FRAME_TYPE_ERROR:
+            msg = nsq_decode_message(conn->current_data, conn->current_msg_size);
+            if (conn->msg_callback) {
+                conn->msg_callback(conn, msg, conn->arg);
+            }
+            break;            
     }
 
     buffer_drain(buffsock->read_buf, conn->current_msg_size);
@@ -92,6 +102,9 @@ static void nsqd_connection_close_cb(struct BufferedSocket *buffsock, void *arg)
 static void nsqd_connection_error_cb(struct BufferedSocket *buffsock, void *arg)
 {
     struct NSQDConnection *conn = (struct NSQDConnection *)arg;
+    if(conn->error_callback){
+        conn->error_callback(conn, conn->arg);
+    }
 
     _DEBUG("%s: conn %p\n", __FUNCTION__, conn);
 }
@@ -130,6 +143,8 @@ struct NSQDConnection *new_nsqd_connection(struct ev_loop *loop, const char *add
 struct NSQDConnection *new_nsqd_pub_connection(struct ev_loop *loop, const char *address, int port,
     void (*connect_callback)(struct NSQDConnection *conn, void *arg),
     void (*close_callback)(struct NSQDConnection *conn, void *arg),
+    void (*success_callback)(struct NSQDConnection *conn, void *arg),
+    void (*error_callback)(struct NSQDConnection *conn, void *arg),
     void (*msg_callback)(struct NSQDConnection *conn, struct NSQMessage *msg, void *arg),
     struct NSQReaderCfg *cfg,
     void *arg)
@@ -148,6 +163,8 @@ struct NSQDConnection *new_nsqd_pub_connection(struct ev_loop *loop, const char 
     conn->connect_callback = connect_callback;
     conn->close_callback = close_callback;
     conn->msg_callback = msg_callback;
+    conn->success_callback = success_callback;
+    conn->error_callback = error_callback;
     conn->arg = arg;
     conn->loop = loop;
     conn->reconnect_timer = NULL;
