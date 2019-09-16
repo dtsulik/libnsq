@@ -225,3 +225,9 @@ void nsqd_connection_stop_timer(struct NSQDConnection *conn)
         free(conn->reconnect_timer);
     }
 }
+
+void nsq_run(struct ev_loop *loop)
+{
+    srand(time(NULL));
+    ev_loop(loop, 0);
+}

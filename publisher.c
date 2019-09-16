@@ -233,8 +233,37 @@ int nsq_publisher_connect_to_nsqd(struct NSQPublisher *pub, const char *address,
 }
 
 
-void nsq_run(struct ev_loop *loop)
-{
-    srand(time(NULL));
-    ev_loop(loop, 0);
+#define DEFAULT_MAX_SEND_SIZE 5242880
+#define STACK_BUFFER_SIZE 16 * 1024
+
+int nsq_unbuffered_publish(struct NSQDConnection *conn, char *topic, char *msg, int size, int flags){
+    int rc = -1;
+
+    _DEBUG("%s: topic %s msg %s size %d\n", __FUNCTION__, topic, msg, size);
+
+    if(conn && size <= DEFAULT_MAX_SEND_SIZE){
+        char b[STACK_BUFFER_SIZE];
+        size_t n;
+
+        n = sprintf(b, "PUB %s\n", topic);
+        uint32_t ordered = htobe32(size);
+
+        if(flags == COW_PUB || size <= STACK_BUFFER_SIZE){
+            memcpy(b + n, &ordered, 4);
+            n += 4;
+            memcpy(b + n, msg, size);
+            n += size;
+            rc = send(conn->bs->fd, b, n, 0);
+        }else{
+            rc = send(conn->bs->fd, b, n, 0);
+            if(rc == n){
+                rc = send(conn->bs->fd, &ordered, sizeof(ordered), 0);
+                if(rc == sizeof(ordered)){
+                    rc = send(conn->bs->fd, msg, size, 0);
+                }
+            }
+        }
+    }
+
+    return rc;
 }

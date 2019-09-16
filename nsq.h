@@ -10,6 +10,9 @@
 
 #include "utlist.h"
 
+#define COW_PUB 1
+#define DMA_PUB 2
+
 #define DEFAULT_LOOKUPD_INTERVAL     5.
 #define DEFAULT_COMMAND_BUF_LEN      4096
 #define DEFAULT_COMMAND_BUF_CAPACITY 4096

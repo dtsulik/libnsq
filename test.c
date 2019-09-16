@@ -68,35 +68,15 @@ void *writer(void *p){
     LL_FOREACH(pub->conns, conn) {
         printf("%p\n", conn);
         if(conn){
-            while(1){
-                // buffer_reset(conn->command_buf);
-                // nsq_pub(conn->command_buf, "test", 8, "asdfasdf");
-                // buffered_socket_write_buffer(conn->bs, conn->command_buf);
-                // printf("sent %d\n", sent_counter);
-
-                sent_counter++;
-                char b[1024];
-                char topic[] = {"test"};
-                char msg[] = {"test1234"};
-                int size = 8;
-                size_t n;
-
-                n = sprintf(b, "asdfasdfPUB %s\n", topic);
-                uint32_t ordered = htobe32(size);
-                memcpy(b + n, &ordered, 4);
-                n += 4;
-                memcpy(b + n, msg, size);
-                n += size;
-                int rc = send(conn->bs->fd, b, n, 0);
-                printf("sent %d %d b %s\n", sent_counter, rc, b);
-                nanosleep(&spc, NULL);
-                break;
-            }
+        	nsq_unbuffered_publish(conn, "test2", "asdftest", 8, 0);
         }
+        break;
     }
 
     return NULL;
 }
+
+#define NSQ_HOST "192.168.122.250"
 
 int main(int argc, char **argv)
 {
@@ -107,15 +87,15 @@ int main(int argc, char **argv)
 
     loop = ev_default_loop(0);
 
-    // rdr = new_nsq_reader(loop, "test", "ch", (void *)ctx,
-    //     NULL, NULL, NULL, message_handler);
+    rdr = new_nsq_reader(loop, "test2", "ch", (void *)ctx,
+        NULL, NULL, NULL, message_handler);
 
-    // nsq_reader_connect_to_nsqd(rdr, "192.168.100.9", 4150);
+    nsq_reader_connect_to_nsqd(rdr, NSQ_HOST, 4150);
 
-    pub = new_nsq_publisher(loop, "test", "ch", (void *)ctx,
+    pub = new_nsq_publisher(loop, "test2", "ch", (void *)ctx,
         NULL, NULL, NULL, pub_success_handler, pub_error_handler, response_handler);
 
-    nsq_publisher_connect_to_nsqd(pub, "192.168.100.9", 4150);
+    nsq_publisher_connect_to_nsqd(pub, NSQ_HOST, 4150);
 
     pthread_t t;
     pthread_attr_t t_attr;
