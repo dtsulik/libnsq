@@ -267,3 +267,59 @@ int nsq_unbuffered_publish(struct NSQDConnection *conn, char *topic, char *msg, 
 
     return rc;
 }
+
+int nsq_unbuffered_mpublish(struct NSQDConnection *conn, char *topic, char **msg, int **size, int num_msgs, int total_size, int flags){
+    int rc = -1;
+
+    int body_size = (total_size + 8 + num_msgs * 4);
+
+    _DEBUG("%s: topic %s first_msg %s body_size %d\n", __FUNCTION__, topic, msg[0], body_size);
+
+    if(conn && body_size <= DEFAULT_MAX_SEND_SIZE){
+        int i;
+        char b[STACK_BUFFER_SIZE];
+        uint32_t ordered_num_msgs = htobe32(num_msgs);
+        uint32_t ordered_body_size = htobe32(body_size);
+        size_t n;
+
+        n = sprintf(b, "MPUB %s\n", topic);
+
+        memcpy(b + n, &ordered_body_size, 4);
+        n += 4;
+        memcpy(b + n, &ordered_num_msgs, 4);
+        n += 4;
+
+        while(rc != n){
+            rc = send(conn->bs->fd, b, n, 0);
+            if(rc < 0){
+                return rc;
+            }
+        }
+
+        for(i = 0; i < num_msgs; i++){
+            uint32_t ordered_size = htobe32(*size[i]);
+            int total_sent = 0;
+            while(total_sent != *size[i] + 4){
+                rc = 0;
+                while(rc != 4){
+                    rc = send(conn->bs->fd, &ordered_size, 4, 0);
+                    if(rc < 0){
+                        return rc;
+                    }else{
+                        total_sent += rc;
+                    }
+                }
+                rc = 0;
+                while(rc != *size[i]){
+                    rc = send(conn->bs->fd, msg[i], *size[i], 0);
+                    if(rc < 0){
+                        return rc;
+                    }else{
+                        total_sent += rc;
+                    }
+                }
+            }
+        }
+    }
+    return rc;
+}

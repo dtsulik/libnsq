@@ -107,6 +107,9 @@ int nsq_publisher_connect_to_nsqlookupd(struct NSQPublisher *pub);
 int nsq_publisher_add_nsqlookupd_endpoint(struct NSQPublisher *pub, const char *address, int port);
 void nsq_publisher_set_loop(struct NSQPublisher *pub, struct ev_loop *loop);
 
+int nsq_unbuffered_publish(struct NSQDConnection *conn, char *topic, char *msg, int size, int flags);
+int nsq_unbuffered_mpublish(struct NSQDConnection *conn, char *topic, char **msg, int **size, int num_msgs, int total_size, int flags);
+
 void nsq_run(struct ev_loop *loop);
 
 struct NSQDConnection {
@@ -164,6 +167,7 @@ struct NSQMessage {
     char id[16+1];
     size_t body_length;
     char *body;
+    struct NSQMessage *next;
 };
 
 struct NSQMessage *nsq_decode_message(const char *data, size_t data_length);
