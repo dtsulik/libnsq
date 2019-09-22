@@ -84,7 +84,7 @@ void *writer(void *p){
     sizes[3] = &one_size_to_rule_them_all;
     sizes[4] = &one_size_to_rule_them_all;
 
-    printf("hello from writer\n");
+    printf("hello from writer thread\n");
 
     printf("%p\n", conn);
 
