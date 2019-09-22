@@ -95,7 +95,8 @@ void *writer(void *p){
     //     }
     // }
 
-    nsq_unbuffered_mpublish(conn, "test2", msgs, sizes, 5, 20, 0);
+    int rc = nsq_unbuffered_mpublish(conn, "test2", msgs, sizes, 5, 20, 0);
+    printf("rc = %d\n", rc);
     return NULL;
 }
 
@@ -129,7 +130,7 @@ int main(int argc, char **argv)
     pub = new_nsq_publisher(loop, "test2", "ch", (void *)ctx,
         NULL, NULL, NULL, pub_success_handler, pub_error_handler, response_handler);
 
-    nsq_publisher_connect_to_nsqd(pub, NSQ_HOST, 4150, conn);
+    nsq_publisher_connect_to_nsqd(pub, NSQ_HOST, 4150, &conn);
 
     // direct pub thread
     pthread_create(&t, &t_attr, writer, conn);
