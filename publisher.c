@@ -215,7 +215,12 @@ int nsq_publisher_add_nsqlookupd_endpoint(struct NSQPublisher *pub, const char *
 int nsq_publisher_connect_to_nsqd(struct NSQPublisher *pub, const char *address, int port, struct NSQDConnection **conn)
 {
     struct NSQDConnection *conn_ptr = NULL;
-    int rc;
+    int rc = -1;
+
+    if(pub == NULL || address == NULL || conn){
+        return rc;
+    }
+
 
     conn_ptr = new_nsqd_pub_connection(pub->loop, address, port,
         nsq_publisher_connect_cb, nsq_publisher_close_cb, nsq_publisher_success_cb, nsq_publisher_error_cb, nsq_publisher_msg_cb, NULL, pub);
@@ -229,8 +234,10 @@ int nsq_publisher_connect_to_nsqd(struct NSQPublisher *pub, const char *address,
         nsqd_connection_init_timer(conn_ptr, nsq_publisher_reconnect_cb);
     }
 
-    if(*conn == NULL){
-        *conn = conn_ptr;
+    if(conn != NULL){
+        if(*conn == NULL){
+            *conn = conn_ptr;
+        }        
     }
 
     return rc;

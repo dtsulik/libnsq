@@ -198,7 +198,11 @@ int nsq_reader_add_nsqlookupd_endpoint(struct NSQReader *rdr, const char *addres
 int nsq_reader_connect_to_nsqd(struct NSQReader *rdr, const char *address, int port)
 {
     struct NSQDConnection *conn = NULL;
-    int rc;
+    int rc = - 1;
+
+    if(rdr == NULL || address == NULL){
+        return rc;
+    }
 
     conn = new_nsqd_connection(rdr->loop, address, port,
         nsq_reader_connect_cb, nsq_reader_close_cb, nsq_reader_msg_cb, rdr);
