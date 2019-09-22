@@ -342,13 +342,6 @@ int nsq_unbuffered_publish(int sock, char *topic, char *msg, int size, int timeo
     setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
 
     rc = recv(sock, b, STACK_BUFFER_SIZE, 0);
-    printf("%d\n", rc);
-    printf("%s\n", b);
-    if(rc > 0){
-        b[rc] = '\0';
-    }else{
-        printf("%d\n", errno);
-    }
     if(b[8] == 'O' && b[9] == 'K'){
         return total_sent;
     }else{
