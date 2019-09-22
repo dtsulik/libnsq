@@ -117,6 +117,10 @@ struct NSQReader *new_nsq_reader(struct ev_loop *loop, const char *topic, const 
 {
     struct NSQReader *rdr;
 
+    if(loop == NULL || topic == NULL || channel == NULL){
+        return NULL;
+    }
+
     rdr = (struct NSQReader *)malloc(sizeof(struct NSQReader));
     rdr->cfg = (struct NSQReaderCfg *)malloc(sizeof(struct NSQReaderCfg));
     if (cfg == NULL) {

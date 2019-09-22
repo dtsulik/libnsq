@@ -131,6 +131,10 @@ struct NSQPublisher *new_nsq_publisher(struct ev_loop *loop, const char *topic, 
 {
     struct NSQPublisher *pub;
 
+    if(loop == NULL || topic == NULL || channel == NULL){
+        return NULL;
+    }
+
     pub = (struct NSQPublisher *)malloc(sizeof(struct NSQPublisher));
     pub->cfg = (struct NSQPublisherCfg *)malloc(sizeof(struct NSQPublisherCfg));
 
@@ -217,10 +221,9 @@ int nsq_publisher_connect_to_nsqd(struct NSQPublisher *pub, const char *address,
     struct NSQDConnection *conn_ptr = NULL;
     int rc = -1;
 
-    if(pub == NULL || address == NULL || conn){
+    if(pub == NULL || address == NULL){
         return rc;
     }
-
 
     conn_ptr = new_nsqd_pub_connection(pub->loop, address, port,
         nsq_publisher_connect_cb, nsq_publisher_close_cb, nsq_publisher_success_cb, nsq_publisher_error_cb, nsq_publisher_msg_cb, NULL, pub);
@@ -234,6 +237,7 @@ int nsq_publisher_connect_to_nsqd(struct NSQPublisher *pub, const char *address,
         nsqd_connection_init_timer(conn_ptr, nsq_publisher_reconnect_cb);
     }
 
+    printf("if %p\n\n\n\n", conn);
     if(conn != NULL){
         if(*conn == NULL){
             *conn = conn_ptr;
@@ -243,11 +247,118 @@ int nsq_publisher_connect_to_nsqd(struct NSQPublisher *pub, const char *address,
     return rc;
 }
 
-
 #define DEFAULT_MAX_SEND_SIZE 5242880
-#define STACK_BUFFER_SIZE 16 * 1024
+#define STACK_BUFFER_SIZE 1024
 
-int nsq_unbuffered_publish(struct NSQDConnection *conn, char *topic, char *msg, int size, int flags){
+int nsq_pub_unbuffered_connect(const char *address, int port){
+    int sock = -1, ret;
+    struct addrinfo hints, *p, *dstinfo;
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+
+    char port_str[6];
+    int rc = snprintf(port_str, 6, "%d", port);
+    if(rc < 0){
+        return -3;
+    }
+
+    if((ret = getaddrinfo(address, port_str, &hints, &dstinfo)) != 0){
+        return -2;
+    }
+
+    for(p = dstinfo; p != NULL; p = p->ai_next){
+        if((sock = socket(p->ai_family, p->ai_socktype | SOCK_CLOEXEC, p->ai_protocol)) == -1){
+            continue;
+        }
+        break;
+    }
+
+    if(connect(sock, dstinfo->ai_addr, dstinfo->ai_addrlen) == -1){
+        close(sock);
+        freeaddrinfo(dstinfo);
+        return -3;
+    }
+
+    freeaddrinfo(dstinfo);
+
+    char b[STACK_BUFFER_SIZE];
+    size_t n;
+    n = sprintf(b, "  V2");
+
+    int total_sent = 0;
+    rc = 0;
+    while(total_sent < n){
+        rc = send(sock, b, n, 0);
+        if(rc < 0){
+            close(sock);
+            return -1;
+        }else{
+            total_sent += rc;
+        }
+    }
+
+    return sock;
+}
+
+int nsq_unbuffered_publish(int sock, char *topic, char *msg, int size, int timeout_in_seconds){
+    int rc = -1;
+
+    _DEBUG("%s: topic %s msg %s size %d\n", __FUNCTION__, topic, msg, size);
+
+    if(sock < 0 || topic == NULL || msg == NULL){
+        if(size > (STACK_BUFFER_SIZE - sizeof(topic) - 4) || sizeof(topic) > (STACK_BUFFER_SIZE - 4)){
+            return -1;
+        }
+        return -2;
+    }
+
+    char b[STACK_BUFFER_SIZE];
+    size_t n;
+
+    n = sprintf(b, "PUB %s\n", topic);
+    uint32_t ordered = htobe32(size);
+    int total_sent = 0;
+
+    memcpy(b + n, &ordered, 4);
+    n += 4;
+    memcpy(b + n, msg, size);
+    n += size;
+
+    while(total_sent < n){
+        rc = send(sock, b, n, 0);
+        if(rc < 0){
+            break;
+        }else{
+            total_sent += rc;
+        }
+    }
+
+    struct timeval tv;
+    tv.tv_sec = timeout_in_seconds;
+    tv.tv_usec = 0;
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+
+    rc = recv(sock, b, STACK_BUFFER_SIZE, 0);
+    printf("%d\n", rc);
+    printf("%s\n", b);
+    if(rc > 0){
+        b[rc] = '\0';
+    }else{
+        printf("%d\n", errno);
+    }
+    if(b[8] == 'O' && b[9] == 'K'){
+        return total_sent;
+    }else{
+        return -3;
+    }
+
+    return -4;
+}
+
+int __nsq_unbuffered_publish(struct NSQDConnection *conn, char *topic, char *msg, int size, int flags){
     int rc = -1;
 
     _DEBUG("%s: topic %s msg %s size %d\n", __FUNCTION__, topic, msg, size);
@@ -276,61 +387,5 @@ int nsq_unbuffered_publish(struct NSQDConnection *conn, char *topic, char *msg, 
         }
     }
 
-    return rc;
-}
-
-int nsq_unbuffered_mpublish(struct NSQDConnection *conn, char *topic, char **msg, int **size, int num_msgs, int total_size, int flags){
-    int rc = -1;
-
-    int body_size = (total_size + 8 + num_msgs * 4);
-
-    _DEBUG("%s: topic %s first_msg %s body_size %d\n", __FUNCTION__, topic, msg[0], body_size);
-
-    if(conn && body_size <= DEFAULT_MAX_SEND_SIZE){
-        int i;
-        char b[STACK_BUFFER_SIZE];
-        uint32_t ordered_num_msgs = htobe32(num_msgs);
-        uint32_t ordered_body_size = htobe32(body_size);
-        size_t n;
-
-        n = sprintf(b, "MPUB %s\n", topic);
-
-        memcpy(b + n, &ordered_body_size, 4);
-        n += 4;
-        memcpy(b + n, &ordered_num_msgs, 4);
-        n += 4;
-
-        while(rc != n){
-            rc = send(conn->bs->fd, b, n, 0);
-            if(rc < 0){
-                return rc;
-            }
-        }
-
-        for(i = 0; i < num_msgs; i++){
-            uint32_t ordered_size = htobe32(*size[i]);
-            int total_sent = 0;
-            while(total_sent != *size[i] + 4){
-                rc = 0;
-                while(rc != 4){
-                    rc = send(conn->bs->fd, &ordered_size, 4, 0);
-                    if(rc < 0){
-                        return rc;
-                    }else{
-                        total_sent += rc;
-                    }
-                }
-                rc = 0;
-                while(rc != *size[i]){
-                    rc = send(conn->bs->fd, msg[i], *size[i], 0);
-                    if(rc < 0){
-                        return rc;
-                    }else{
-                        total_sent += rc;
-                    }
-                }
-            }
-        }
-    }
     return rc;
 }

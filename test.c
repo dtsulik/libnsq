@@ -7,6 +7,8 @@
 #define _DEBUG(...) do {;} while (0)
 #endif
 
+#define NSQ_HOST "10.10.134.124"
+
 int sent_counter = 0;
 int rcv_counter = 0;
 
@@ -55,52 +57,15 @@ static void pub_success_handler(struct NSQPublisher *pub, struct NSQDConnection 
 }
 
 void *writer(void *p){
-    struct NSQDConnection *conn = (struct NSQDConnection *) p;
-
-    struct timespec spc;
-    spc.tv_sec = 0;
-    spc.tv_nsec = 500000000;
-
-    sleep(4);
-
-
-    char **msgs = malloc(5 * sizeof(char *));
-    int **sizes = malloc(5 * sizeof(int *));
-    int one_size_to_rule_them_all = 4;
-
-    char msg1[] = {"msg1"};
-    char msg2[] = {"msg2"};
-    char msg3[] = {"msg3"};
-    char msg4[] = {"msg4"};
-    char msg5[] = {"msg5"};
-    msgs[0] = msg1;
-    msgs[1] = msg2;
-    msgs[2] = msg3;
-    msgs[3] = msg4;
-    msgs[4] = msg5;
-    sizes[0] = &one_size_to_rule_them_all;
-    sizes[1] = &one_size_to_rule_them_all;
-    sizes[2] = &one_size_to_rule_them_all;
-    sizes[3] = &one_size_to_rule_them_all;
-    sizes[4] = &one_size_to_rule_them_all;
 
     printf("hello from writer thread\n");
 
-    printf("%p\n", conn);
+    int sock = nsq_pub_unbuffered_connect(NSQ_HOST, 4150);
+    int rc = nsq_unbuffered_publish(sock, "test2", "asdftest", 8, 10);
 
-    // int i = 0;
-    // for(i = 0; i < 5; i++){
-    //     if(conn){
-    //         nsq_unbuffered_publish(conn, "test2", "asdftest", 8, 0);
-    //     }
-    // }
-
-    int rc = nsq_unbuffered_mpublish(conn, "test2", msgs, sizes, 5, 20, 0);
     printf("rc = %d\n", rc);
     return NULL;
 }
-
-#define NSQ_HOST "10.10.134.124"
 
 int main(int argc, char **argv)
 {
@@ -115,7 +80,6 @@ int main(int argc, char **argv)
     pthread_attr_init(&t_attr);
     pthread_attr_setdetachstate(&t_attr, PTHREAD_CREATE_DETACHED);
 
-
     // ev loop init
     loop = ev_default_loop(0);
 
@@ -127,13 +91,13 @@ int main(int argc, char **argv)
     nsq_reader_connect_to_nsqd(rdr, NSQ_HOST, 4150);
 
     // publisher
-    pub = new_nsq_publisher(loop, "test2", "ch", (void *)ctx,
-        NULL, NULL, NULL, pub_success_handler, pub_error_handler, response_handler);
+    // pub = new_nsq_publisher(loop, "test2", "ch", (void *)ctx,
+    //     NULL, NULL, NULL, pub_success_handler, pub_error_handler, response_handler);
 
-    nsq_publisher_connect_to_nsqd(pub, NSQ_HOST, 4150, &conn);
+    // nsq_publisher_connect_to_nsqd(pub, NSQ_HOST, 4150, &conn);
 
     // direct pub thread
-    pthread_create(&t, &t_attr, writer, conn);
+    pthread_create(&t, &t_attr, writer, NULL);
 
     // ev loop run
     nsq_run(loop);
