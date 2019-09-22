@@ -82,7 +82,7 @@ static void nsq_publisher_reconnect_cb(EV_P_ struct ev_timer *w, int revents)
 
     if (pub->lookupd == NULL) {
         _DEBUG("%s: There is no lookupd, try to reconnect to nsqd directly\n", __FUNCTION__);
-        nsq_publisher_connect_to_nsqd(pub, conn->address, conn->port);
+        nsq_publisher_connect_to_nsqd(pub, conn->address, conn->port, NULL);
     }
 
     free_nsqd_connection(conn);
@@ -212,21 +212,25 @@ int nsq_publisher_add_nsqlookupd_endpoint(struct NSQPublisher *pub, const char *
     return 1;
 }
 
-int nsq_publisher_connect_to_nsqd(struct NSQPublisher *pub, const char *address, int port)
+int nsq_publisher_connect_to_nsqd(struct NSQPublisher *pub, const char *address, int port, struct NSQDConnection *conn)
 {
-    struct NSQDConnection *conn = NULL;
+    struct NSQDConnection *conn_ptr = NULL;
     int rc;
 
-    conn = new_nsqd_pub_connection(pub->loop, address, port,
+    conn_ptr = new_nsqd_pub_connection(pub->loop, address, port,
         nsq_publisher_connect_cb, nsq_publisher_close_cb, nsq_publisher_success_cb, nsq_publisher_error_cb, nsq_publisher_msg_cb, NULL, pub);
 
-    rc = nsqd_connection_connect(conn);
+    rc = nsqd_connection_connect(conn_ptr);
     if (rc > 0) {
-        LL_APPEND(pub->conns, conn);
+        LL_APPEND(pub->conns, conn_ptr);
     }
 
     if (pub->lookupd == NULL) {
-        nsqd_connection_init_timer(conn, nsq_publisher_reconnect_cb);
+        nsqd_connection_init_timer(conn_ptr, nsq_publisher_reconnect_cb);
+    }
+
+    if(conn == NULL){
+        conn = conn_ptr;
     }
 
     return rc;

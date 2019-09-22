@@ -55,8 +55,7 @@ static void pub_success_handler(struct NSQPublisher *pub, struct NSQDConnection 
 }
 
 void *writer(void *p){
-    struct NSQPublisher *pub = (struct NSQPublisher *) p;
-    struct NSQDConnection *conn;
+    struct NSQDConnection *conn = (struct NSQDConnection *) p;
 
     struct timespec spc;
     spc.tv_sec = 0;
@@ -87,21 +86,16 @@ void *writer(void *p){
 
     printf("hello from writer\n");
 
-    int i = 0;
-    LL_FOREACH(pub->conns, conn) {
-        printf("%p\n", conn);
+    printf("%p\n", conn);
 
-        // for(i = 0; i < 5; i++){
-        //     if(conn){
-        //         nsq_unbuffered_publish(conn, "test2", "asdftest", 8, 0);
-        //     }
-        // }
+    // int i = 0;
+    // for(i = 0; i < 5; i++){
+    //     if(conn){
+    //         nsq_unbuffered_publish(conn, "test2", "asdftest", 8, 0);
+    //     }
+    // }
 
-        nsq_unbuffered_mpublish(conn, "test2", msgs, sizes, 5, 20, 0);
-
-        break;
-    }
-
+    nsq_unbuffered_mpublish(conn, "test2", msgs, sizes, 5, 20, 0);
     return NULL;
 }
 
@@ -111,6 +105,7 @@ int main(int argc, char **argv)
 {
     struct NSQPublisher *pub;
     struct NSQReader *rdr;
+    struct NSQDConnection *conn = NULL;
     struct ev_loop *loop;
     void *ctx = NULL;
 
@@ -134,10 +129,10 @@ int main(int argc, char **argv)
     pub = new_nsq_publisher(loop, "test2", "ch", (void *)ctx,
         NULL, NULL, NULL, pub_success_handler, pub_error_handler, response_handler);
 
-    nsq_publisher_connect_to_nsqd(pub, NSQ_HOST, 4150);
+    nsq_publisher_connect_to_nsqd(pub, NSQ_HOST, 4150, conn);
 
     // direct pub thread
-    pthread_create(&t, &t_attr, writer, pub);
+    pthread_create(&t, &t_attr, writer, conn);
 
     // ev loop run
     nsq_run(loop);
