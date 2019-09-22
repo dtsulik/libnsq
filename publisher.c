@@ -8,6 +8,10 @@
 #define _DEBUG(...) do {;} while (0)
 #endif
 
+#define DEFAULT_MAX_SEND_SIZE 5242880
+#define STACK_BUFFER_SIZE 1024
+#define SPINLOCKNS  10000000
+
 static void nsq_publisher_connect_cb(struct NSQDConnection *conn, void *arg)
 {
     struct NSQPublisher *pub = (struct NSQPublisher *)arg;
@@ -247,10 +251,95 @@ int nsq_publisher_connect_to_nsqd(struct NSQPublisher *pub, const char *address,
     return rc;
 }
 
-#define DEFAULT_MAX_SEND_SIZE 5242880
-#define STACK_BUFFER_SIZE 1024
+void nsq_pub_unbuffered_read_cb(EV_P_ struct ev_io *w, int revents){
+    struct NSQDUnbufferedCon *ucon = w->data;
+    ucon->reading = 1;
+    char b[STACK_BUFFER_SIZE];
 
-int nsq_pub_unbuffered_connect(const char *address, int port){
+    _DEBUG("%s: ucon %p\n", __FUNCTION__, ucon);
+
+    int rc = read(w->fd, b, STACK_BUFFER_SIZE);
+    if(rc <= 0 ){
+        _DEBUG("%s: error %p\n", __FUNCTION__, ucon);
+        close(w->fd);
+    }
+
+    int total_processed = 0;
+    while(total_processed < rc){
+        uint32_t current_msg_size = ntohl(*(uint32_t *)b);
+        uint32_t current_frame_type = ntohl(*((uint32_t *)b + 4));
+
+        char *data = b + 8;
+        printf("frame type %x\n", current_frame_type);
+        switch(current_frame_type){
+            case NSQ_FRAME_TYPE_RESPONSE:
+                if (strncmp(data, "_heartbeat_", 11) == 0) {
+                    printf("heartttttttttttt\n");
+                    size_t n;
+                    n = sprintf(b, "NOP\n");
+
+                    int total_sent = 0;
+                    rc = 0;
+                    while(total_sent < n){
+                        rc = send(w->fd, b, n, 0);
+                        if(rc < 0){
+                            close(w->fd);
+                            ucon->sock = -1;
+                            return;
+                        }else{
+                            total_sent += rc;
+                        }
+                    }
+                }else if (strncmp(data, "OK", 2) == 0) {
+                    printf("data %s\n", data);
+                    ucon->OK_recvd = 1;
+                }
+                break;
+            case NSQ_FRAME_TYPE_ERROR:
+                ucon->ERROR_recvd = 1;
+                break;
+        }
+        total_processed += current_msg_size + 4;
+    }
+
+    ucon->reading = 0;
+}
+
+void *nsq_new_unbuffered_pub_thr(void *p){
+    struct NSQDUnbufferedCon *ucon = (struct NSQDUnbufferedCon *)p;
+    srand(time(NULL));
+    ev_loop(ucon->loop, 0);
+    return NULL;
+}
+
+void free_unbuffered_pub(struct NSQDUnbufferedCon *ucon){
+    ev_break(ucon->loop, EVBREAK_ONE);
+    ev_io_stop(ucon->loop, &ucon->read_ev);
+    close(ucon->sock);
+    ev_loop_destroy(ucon->loop);
+    free(ucon);
+}
+
+struct NSQDUnbufferedCon *nsq_new_unbuffered_pub(const char *address, int port){
+    struct NSQDUnbufferedCon *ucon = calloc(1, sizeof(struct NSQDUnbufferedCon));
+    ucon->loop = ev_loop_new(0);
+
+    int rc = nsq_pub_unbuffered_connect(ucon, address, port);
+
+    if(rc <= 0){
+        return NULL;
+    }
+
+    pthread_t t;
+    pthread_attr_t t_attr;
+    pthread_attr_init(&t_attr);
+    pthread_attr_setdetachstate(&t_attr, PTHREAD_CREATE_DETACHED);
+    pthread_create(&t, &t_attr, nsq_new_unbuffered_pub_thr, ucon);
+
+    return ucon;
+}
+
+int nsq_pub_unbuffered_connect(struct NSQDUnbufferedCon *ucon, const char *address, int port){
     int sock = -1, ret;
     struct addrinfo hints, *p, *dstinfo;
 
@@ -300,15 +389,21 @@ int nsq_pub_unbuffered_connect(const char *address, int port){
         }
     }
 
+    ucon->read_ev.data = ucon;
+    ev_io_init(&ucon->read_ev, nsq_pub_unbuffered_read_cb, sock, EV_READ);
+    ev_io_start(ucon->loop, &ucon->read_ev);
+
+    ucon->sock = sock;
+    ucon->reading = 0;
     return sock;
 }
 
-int nsq_unbuffered_publish(int sock, char *topic, char *msg, int size, int timeout_in_seconds){
+int nsq_unbuffered_publish(struct NSQDUnbufferedCon *ucon, char *topic, char *msg, int size, int timeout_in_seconds){
     int rc = -1;
 
     _DEBUG("%s: topic %s msg %s size %d\n", __FUNCTION__, topic, msg, size);
 
-    if(sock < 0 || topic == NULL || msg == NULL){
+    if(ucon->sock < 0 || topic == NULL || msg == NULL){
         if(size > (STACK_BUFFER_SIZE - sizeof(topic) - 4) || sizeof(topic) > (STACK_BUFFER_SIZE - 4)){
             return -1;
         }
@@ -327,28 +422,37 @@ int nsq_unbuffered_publish(int sock, char *topic, char *msg, int size, int timeo
     memcpy(b + n, msg, size);
     n += size;
 
+    while(!ucon->reading){
+        ucon->OK_recvd = 0;
+        break;
+    }
+
     while(total_sent < n){
-        rc = send(sock, b, n, 0);
+        printf("%d\n", ucon->sock);
+        rc = write(ucon->sock, b, n);
         if(rc < 0){
+            printf("errno %d\n", errno);
             break;
         }else{
             total_sent += rc;
         }
     }
 
-    struct timeval tv;
-    tv.tv_sec = timeout_in_seconds;
-    tv.tv_usec = 0;
-    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+    struct timespec tv;
+    tv.tv_sec = 0;
+    tv.tv_nsec = SPINLOCKNS;
 
-    rc = recv(sock, b, STACK_BUFFER_SIZE, 0);
-    if(b[8] == 'O' && b[9] == 'K'){
-        return total_sent;
-    }else{
-        return -3;
+    time_t now = time(NULL);
+    time_t expiry = now + timeout_in_seconds;
+
+    while(!ucon->OK_recvd){
+        now = time(NULL);
+        if(now >= expiry){printf("time\n"); return -1; break;}
+        nanosleep(&tv, NULL);
     }
+    ucon->OK_recvd = 0;
 
-    return -4;
+    return total_sent;
 }
 
 int __nsq_unbuffered_publish(struct NSQDConnection *conn, char *topic, char *msg, int size, int flags){

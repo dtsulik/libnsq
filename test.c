@@ -57,13 +57,18 @@ static void pub_success_handler(struct NSQPublisher *pub, struct NSQDConnection 
 }
 
 void *writer(void *p){
-
     printf("hello from writer thread\n");
+    struct NSQDUnbufferedCon *ucon = nsq_new_unbuffered_pub(NSQ_HOST, 4150);
 
-    int sock = nsq_pub_unbuffered_connect(NSQ_HOST, 4150);
-    int rc = nsq_unbuffered_publish(sock, "test2", "asdftest", 8, 10);
+    printf("conn %p now sleeping\n", ucon);
+    sleep(4);
+    if(ucon == NULL){
+        return NULL;
+    }
 
-    printf("rc = %d\n", rc);
+    int rc = nsq_unbuffered_publish(ucon, "test2", "asdftest", 8, 5);
+    printf("writer test thr rc %d\n", rc);
+
     return NULL;
 }
 
@@ -80,15 +85,15 @@ int main(int argc, char **argv)
     pthread_attr_init(&t_attr);
     pthread_attr_setdetachstate(&t_attr, PTHREAD_CREATE_DETACHED);
 
-    // ev loop init
-    loop = ev_default_loop(0);
+    // // ev loop init
+    // loop = ev_default_loop(0);
 
-    // reader
-    rdr = new_nsq_reader(loop, "test2", "ch", (void *)ctx,
-        NULL, NULL, NULL, message_handler);
+    // // reader
+    // rdr = new_nsq_reader(loop, "test2", "ch", (void *)ctx,
+    //     NULL, NULL, NULL, message_handler);
 
-    rdr->max_in_flight = 5;
-    nsq_reader_connect_to_nsqd(rdr, NSQ_HOST, 4150);
+    // rdr->max_in_flight = 5;
+    // nsq_reader_connect_to_nsqd(rdr, NSQ_HOST, 4150);
 
     // publisher
     // pub = new_nsq_publisher(loop, "test2", "ch", (void *)ctx,
@@ -100,7 +105,11 @@ int main(int argc, char **argv)
     pthread_create(&t, &t_attr, writer, NULL);
 
     // ev loop run
-    nsq_run(loop);
+    // nsq_run(loop);
+
+    while(1){
+        sleep(1);
+    }
 
     return 0;
 }

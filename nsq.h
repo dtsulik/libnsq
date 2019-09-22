@@ -7,6 +7,7 @@
 #include <time.h>
 #include <ev.h>
 #include <evbuffsock.h>
+#include <pthread.h>
 
 #include "utlist.h"
 
@@ -107,9 +108,19 @@ int nsq_publisher_connect_to_nsqlookupd(struct NSQPublisher *pub);
 int nsq_publisher_add_nsqlookupd_endpoint(struct NSQPublisher *pub, const char *address, int port);
 void nsq_publisher_set_loop(struct NSQPublisher *pub, struct ev_loop *loop);
 
-int nsq_pub_unbuffered_connect(const char *address, int port);
-int nsq_unbuffered_publish(int sock, char *topic, char *msg, int size, int timeout_in_seconds);
+struct NSQDUnbufferedCon {
+    int sock;
+    struct ev_io read_ev;
+    struct ev_loop *loop;
+    int OK_recvd;
+    int ERROR_recvd;
+    int reading;
+};
 
+struct NSQDUnbufferedCon *nsq_new_unbuffered_pub(const char *address, int port);
+void free_unbuffered_pub(struct NSQDUnbufferedCon *ucon);
+int nsq_pub_unbuffered_connect(struct NSQDUnbufferedCon *ucon, const char *address, int port);
+int nsq_unbuffered_publish(struct NSQDUnbufferedCon *ucon, char *topic, char *msg, int size, int timeout_in_seconds);
 int __nsq_unbuffered_publish(struct NSQDConnection *conn, char *topic, char *msg, int size, int flags);
 
 void nsq_run(struct ev_loop *loop);
