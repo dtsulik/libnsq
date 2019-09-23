@@ -57,18 +57,19 @@ static void pub_success_handler(struct NSQPublisher *pub, struct NSQDConnection 
 }
 
 void *writer(void *p){
-    printf("hello from writer thread\n");
     struct NSQDUnbufferedCon *ucon = nsq_new_unbuffered_pub(NSQ_HOST, 4150);
 
-    printf("conn %p now sleeping\n", ucon);
-    sleep(4);
     if(ucon == NULL){
         return NULL;
     }
 
-    int rc = nsq_unbuffered_publish(ucon, "test2", "asdftest", 8, 5);
-    printf("writer test thr rc %d\n", rc);
+    int i;
+    for(i = 0; i< 10000; i++){
+        int rc = nsq_unbuffered_publish(ucon, "test2", "asdftest", 8, 5);
+        // printf("writer test %d th msg rc %d\n", i, rc);
+    }
 
+    exit(1);
     return NULL;
 }
 
