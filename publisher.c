@@ -419,10 +419,9 @@ int nsq_unbuffered_publish(struct NSQDUnbufferedCon *ucon, char *topic, char *ms
     n += size;
 
     while(total_sent < n){
-        printf("%d\n", ucon->sock);
         rc = write(ucon->sock, b, n);
         if(rc < 0){
-            printf("errno %d\n", errno);
+            _DEBUG("%s: error: %d\n", __FUNCTION__, errno);
             break;
         }else{
             total_sent += rc;
@@ -439,7 +438,7 @@ int nsq_unbuffered_publish(struct NSQDUnbufferedCon *ucon, char *topic, char *ms
     while(!ucon->OK_recvd){
         now = time(NULL);
         if(now >= expiry){return -3; break;}
-        nanosleep(&tv, NULL);
+        // nanosleep(&tv, NULL);
     }
     ucon->OK_recvd = 0;
 

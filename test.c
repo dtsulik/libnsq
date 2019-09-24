@@ -7,7 +7,7 @@
 #define _DEBUG(...) do {;} while (0)
 #endif
 
-#define NSQ_HOST "10.10.134.124"
+#define NSQ_HOST "10.10.134.127"
 
 int sent_counter = 0;
 int rcv_counter = 0;
@@ -56,6 +56,44 @@ static void pub_success_handler(struct NSQPublisher *pub, struct NSQDConnection 
 
 }
 
+void *publisher(void *p){
+    struct NSQDUnbufferedCon *ucon = nsq_new_unbuffered_pub(NSQ_HOST, 4150);
+
+    if(ucon == NULL){
+        return NULL;
+    }
+
+    int i;
+
+    struct timespec cpu_time_1;
+    struct timespec real_time_1;
+    struct timespec cpu_time_2;
+    struct timespec real_time_2;
+
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &cpu_time_1);
+    clock_gettime(CLOCK_REALTIME, &real_time_1);
+
+    for(i = 0; i< 10000; i++){
+        int rc = nsq_unbuffered_publish(ucon, "test2", "asdftest", 8, 5);
+    }
+
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &cpu_time_2);
+    clock_gettime(CLOCK_REALTIME, &real_time_2);
+
+    struct timespec cpu_time_3;
+    struct timespec real_time_3;    
+
+    cpu_time_3.tv_sec = cpu_time_2.tv_sec - cpu_time_1.tv_sec;
+    cpu_time_3.tv_nsec = cpu_time_2.tv_nsec - cpu_time_1.tv_nsec;
+    real_time_3.tv_sec = real_time_2.tv_sec - real_time_1.tv_sec;
+    real_time_3.tv_nsec = real_time_2.tv_nsec - real_time_1.tv_nsec;
+
+    printf("task finished in %lds.%ldns; cpu time %lds.%ldns\n",
+        real_time_3.tv_sec, real_time_3.tv_nsec, cpu_time_3.tv_sec, cpu_time_3.tv_nsec);
+
+    return NULL;
+}
+
 void *writer(void *p){
     struct NSQDUnbufferedCon *ucon = nsq_new_unbuffered_pub(NSQ_HOST, 4150);
 
@@ -64,12 +102,35 @@ void *writer(void *p){
     }
 
     int i;
-    for(i = 0; i< 10000; i++){
+
+    struct timespec cpu_time_1;
+    struct timespec real_time_1;
+    struct timespec cpu_time_2;
+    struct timespec real_time_2;
+
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &cpu_time_1);
+    clock_gettime(CLOCK_REALTIME, &real_time_1);
+
+    for(i = 0; i< 1000; i++){
         int rc = nsq_unbuffered_publish(ucon, "test2", "asdftest", 8, 5);
-        // printf("writer test %d th msg rc %d\n", i, rc);
     }
 
-    exit(1);
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &cpu_time_2);
+    clock_gettime(CLOCK_REALTIME, &real_time_2);
+
+#define NS 1000000000
+
+    long long cpu_nanosec_1 = (cpu_time_1.tv_sec * NS) + cpu_time_1.tv_nsec;
+    long long cpu_nanosec_2 = (cpu_time_2.tv_sec * NS) + cpu_time_2.tv_nsec;
+    long long real_nanosec_1 = (real_time_1.tv_sec * NS) + real_time_1.tv_nsec;
+    long long real_nanosec_2 = (real_time_2.tv_sec * NS) + real_time_2.tv_nsec;
+
+    long long cpu_nsec = (cpu_nanosec_2 - cpu_nanosec_1);
+    long long real_nsec = (real_nanosec_2 - real_nanosec_1);
+
+    printf("task finished in %lds.%ldns; cpu time %lds.%ldns\n",
+        real_nsec/NS, real_nsec % NS, cpu_nsec/NS, cpu_nsec % NS);
+
     return NULL;
 }
 
