@@ -394,7 +394,7 @@ int nsq_pub_unbuffered_connect(struct NSQDUnbufferedCon *ucon, const char *addre
     return sock;
 }
 
-int nsq_unbuffered_publish(struct NSQDUnbufferedCon *ucon, char *topic, char *msg, int size, int timeout_in_seconds){
+int nsq_unbuffered_publish(struct NSQDUnbufferedCon *ucon, char *topic, char *msg, int size, int timeout_in_seconds, int wait_ok){
     int rc = -1;
 
     _DEBUG("%s: topic: %s msg: %s size: %d\n", __FUNCTION__, topic, msg, size);
@@ -428,19 +428,21 @@ int nsq_unbuffered_publish(struct NSQDUnbufferedCon *ucon, char *topic, char *ms
         }
     }
 
-    struct timespec tv;
-    tv.tv_sec = 0;
-    tv.tv_nsec = SPINLOCKNS;
+    if(wait_ok){
+        struct timespec tv;
+        tv.tv_sec = 0;
+        tv.tv_nsec = SPINLOCKNS;
 
-    time_t now = time(NULL);
-    time_t expiry = now + timeout_in_seconds;
+        time_t now = time(NULL);
+        time_t expiry = now + timeout_in_seconds;
 
-    while(!ucon->OK_recvd){
-        now = time(NULL);
-        if(now >= expiry){return -3; break;}
-        // nanosleep(&tv, NULL);
+        while(!ucon->OK_recvd){
+            now = time(NULL);
+            if(now >= expiry){return -3; break;}
+            nanosleep(&tv, NULL);
+        }
+        ucon->OK_recvd = 0;        
     }
-    ucon->OK_recvd = 0;
 
     return total_sent;
 }
