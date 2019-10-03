@@ -118,7 +118,7 @@ struct NSQDConnection *new_nsqd_connection(struct ev_loop *loop, const char *add
     struct NSQDConnection *conn;
     struct NSQReader *rdr = (struct NSQReader *)arg;
 
-    conn = (struct NSQDConnection *)malloc(sizeof(struct NSQDConnection));
+    conn = (struct NSQDConnection *)calloc(1, sizeof(struct NSQDConnection));
     conn->address = strdup(address);
     conn->port = port;
     conn->command_buf = new_buffer(rdr->cfg->command_buf_len, rdr->cfg->command_buf_capacity);

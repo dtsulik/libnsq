@@ -8,6 +8,7 @@
 #endif
 
 #define NSQ_HOST "10.10.134.127"
+#define NSQ_HOST2 "10.10.134.237"
 #define NS 1000000000
 
 int sent_counter = 0;
@@ -133,44 +134,62 @@ void *writer(void *p){
     return NULL;
 }
 
+void *reader(void *p){
+    char *host_str = (char*)p;
+    struct NSQReader *rdr;
+
+    struct ev_loop *loop = ev_loop_new(0);
+
+    // reader
+    rdr = new_nsq_reader(loop, "test3", "ch", NULL,
+        NULL, NULL, NULL, message_handler);
+
+    rdr->max_in_flight = 50;
+    nsq_reader_connect_to_nsqd(rdr, host_str, 4150);
+    // ev loop run
+    nsq_run(loop);
+}
+
 int main(int argc, char **argv)
 {
-    struct NSQPublisher *pub;
-    struct NSQReader *rdr;
-    struct NSQDConnection *conn = NULL;
-    struct ev_loop *loop;
-    void *ctx = NULL;
+    // struct NSQPublisher *pub;
+    // struct NSQReader *rdr;
+    // struct NSQReader *rdr2;
+    // struct NSQDConnection *conn = NULL;
+    // struct ev_loop *loop;
+    // void *ctx = NULL;
 
     pthread_t t;
     pthread_attr_t t_attr;
     pthread_attr_init(&t_attr);
     pthread_attr_setdetachstate(&t_attr, PTHREAD_CREATE_DETACHED);
 
-    // ev loop init
-    loop = ev_default_loop(0);
+    // // ev loop init
+    // loop = ev_default_loop(0);
 
-    // reader
-    rdr = new_nsq_reader(loop, "test2", "ch", (void *)ctx,
-        NULL, NULL, NULL, message_handler);
+    // // reader
+    // rdr = new_nsq_reader(loop, "test3", "ch", (void *)ctx,
+    //     NULL, NULL, NULL, message_handler);
 
-    rdr->max_in_flight = 50;
-    nsq_reader_connect_to_nsqd(rdr, NSQ_HOST, 4150);
+    // rdr->max_in_flight = 50;
+    // nsq_reader_connect_to_nsqd(rdr, NSQ_HOST, 4150);
 
-    // publisher
-    pub = new_nsq_publisher(loop, "test2", "ch", (void *)ctx,
-        NULL, NULL, NULL, pub_success_handler, pub_error_handler, response_handler);
+    // // publisher
+    // pub = new_nsq_publisher(loop, "test2", "ch", (void *)ctx,
+    //     NULL, NULL, NULL, pub_success_handler, pub_error_handler, response_handler);
 
-    nsq_publisher_connect_to_nsqd(pub, NSQ_HOST, 4150, &conn);
+    // nsq_publisher_connect_to_nsqd(pub, NSQ_HOST, 4150, &conn);
 
     // direct pub thread
-    pthread_create(&t, &t_attr, writer, NULL);
+    pthread_create(&t, &t_attr, reader, NSQ_HOST);
+    pthread_create(&t, &t_attr, reader, NSQ_HOST2);
 
     // ev loop run
-    nsq_run(loop);
+    // nsq_run(loop);
 
-    // while(1){
-    //     sleep(1);
-    // }
+    while(1){
+        sleep(1);
+    }
 
     return 0;
 }
