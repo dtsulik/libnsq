@@ -338,6 +338,7 @@ struct NSQDUnbufferedCon *nsq_new_unbuffered_pub(const char *address, int port){
 
 int nsq_pub_unbuffered_connect(struct NSQDUnbufferedCon *ucon, const char *address, int port,void(*status_change_callback)(struct NSQDUnbufferedCon *ucon,int state)){
     //TODO handle callback, connection pointer and status
+    //connset connection set to NSQ servers
 //int nsq_pub_unbuffered_connect(struct NSQDUnbufferedCon *ucon, const char *address, int port){
     int sock = -1, ret;
     struct addrinfo hints, *p, *dstinfo;
@@ -396,7 +397,7 @@ int nsq_pub_unbuffered_connect(struct NSQDUnbufferedCon *ucon, const char *addre
     return sock;
 }
 
-int nsq_unbuffered_publish(struct NSQDUnbufferedCon *ucon, char *topic, char *msg, int size, int timeout_in_seconds, int wait_ok){
+int nsq_unbuffered_publish(struct NSQDUnbufferedCon *ucon, char *topic, unsigned char *msg, int size, int timeout_in_seconds, int wait_ok){
     int rc = -1;
 
     _DEBUG("%s: topic: %s msg: %s size: %d\n", __FUNCTION__, topic, msg, size);
