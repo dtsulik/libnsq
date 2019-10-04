@@ -321,7 +321,7 @@ struct NSQDUnbufferedCon *nsq_new_unbuffered_pub(const char *address, int port){
     struct NSQDUnbufferedCon *ucon = calloc(1, sizeof(struct NSQDUnbufferedCon));
     ucon->loop = ev_loop_new(0);
 
-    int rc = nsq_pub_unbuffered_connect(ucon, address, port);
+    int rc = nsq_pub_unbuffered_connect(ucon, address, port,NULL); //TODO ak ra unda connects?
 
     if(rc <= 0){
         return NULL;
@@ -336,7 +336,9 @@ struct NSQDUnbufferedCon *nsq_new_unbuffered_pub(const char *address, int port){
     return ucon;
 }
 
-int nsq_pub_unbuffered_connect(struct NSQDUnbufferedCon *ucon, const char *address, int port){
+int nsq_pub_unbuffered_connect(struct NSQDUnbufferedCon *ucon, const char *address, int port,void(*status_change_callback)(struct NSQDUnbufferedCon *ucon,int state)){
+    //TODO handle callback, connection pointer and status
+//int nsq_pub_unbuffered_connect(struct NSQDUnbufferedCon *ucon, const char *address, int port){
     int sock = -1, ret;
     struct addrinfo hints, *p, *dstinfo;
 

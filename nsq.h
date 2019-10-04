@@ -119,7 +119,7 @@ struct NSQDUnbufferedCon {
 
 struct NSQDUnbufferedCon *nsq_new_unbuffered_pub(const char *address, int port);
 void free_unbuffered_pub(struct NSQDUnbufferedCon *ucon);
-int nsq_pub_unbuffered_connect(struct NSQDUnbufferedCon *ucon, const char *address, int port);
+int nsq_pub_unbuffered_connect(struct NSQDUnbufferedCon *ucon, const char *address, int port,void(*status_change_callback)(struct NSQDUnbufferedCon *ucon,int state));
 int nsq_unbuffered_publish(struct NSQDUnbufferedCon *ucon, char *topic, char *msg, int size, int timeout_in_seconds, int wait_ok);
 int __nsq_unbuffered_publish(struct NSQDConnection *conn, char *topic, char *msg, int size, int flags);
 
