@@ -23,7 +23,7 @@ libnsq: libnsq.a
 %.o: %.c
 	$(CC) -o $@ -c $< $(CFLAGS)
 
-libnsq.a: command.o publisher.o reader.o nsqd_connection.o http.o message.o nsqlookupd.o json.o
+libnsq.a: command.o publisher.o reader.o nsqd_connection.o http.o message.o nsqlookupd.o json.o upublisher.o
 	$(AR) $(AR_FLAGS) $@ $^
 	$(RANLIB) $@
 

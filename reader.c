@@ -51,7 +51,9 @@ static void nsq_reader_close_cb(struct NSQDConnection *conn, void *arg)
         rdr->close_callback(rdr, conn);
     }
 
-    LL_DELETE(rdr->conns, conn);
+    if(rdr->conns){
+        LL_DELETE(rdr->conns, conn);
+    }
 
     // There is no lookupd, try to reconnect to nsqd directly
     if (rdr->lookupd == NULL) {

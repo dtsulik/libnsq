@@ -11,8 +11,11 @@
 
 #include "utlist.h"
 
-#define COW_PUB 1
-#define DMA_PUB 2
+#define STACK_BUFFER_SIZE            1024
+
+#define NSQ_CONNECTED                1
+#define NSQ_CONNECTING               2
+#define NSQ_DISCONNECTED             3
 
 #define DEFAULT_LOOKUPD_INTERVAL     5.
 #define DEFAULT_COMMAND_BUF_LEN      4096
@@ -21,6 +24,41 @@
 #define DEFAULT_READ_BUF_CAPACITY    16 * 1024
 #define DEFAULT_WRITE_BUF_LEN        16 * 1024
 #define DEFAULT_WRITE_BUF_CAPACITY   16 * 1024
+
+typedef struct
+{
+    pthread_mutex_t lock; /* global loop lock */
+    ev_async async_w;
+    pthread_t tid;
+    pthread_cond_t invoke_cv;
+} userdata;
+
+struct NSQDUnbufferedCon {
+    pthread_mutex_t state_lock;
+    uint8_t state;
+    int sock;
+    char address[128];
+    int port;
+    struct ev_io read_ev;
+    struct ev_loop *loop;
+    struct ev_timer reconnect_timer;
+    void *cbarg;
+    void (*connect_callback)(struct NSQDUnbufferedCon *conn, void *arg);
+    void (*error_callback)(struct NSQDUnbufferedCon *conn, void *arg);
+};
+
+struct NSQDUnbufferedCon *nsq_new_unbuffered_pub(const char *address, int port,
+    void (*connect_callback)(struct NSQDUnbufferedCon *ucon, void *cbarg),
+    void (*error_callback)(struct NSQDUnbufferedCon *ucon, void *cbarg), void *cbarg);
+
+void nsq_ucon_reconnect(EV_P_ ev_timer *w, int revents);
+void nsq_pub_unbuffered_read_cb(EV_P_ struct ev_io *w, int revents);
+int tcp_connect(const char *address, int port);
+int nsq_upub(struct NSQDUnbufferedCon *primary, struct NSQDUnbufferedCon *secondary, char *topic, char *msg, int size);
+int nsq_unbuffered_publish(int sock, char *topic, char *msg, int size);
+void free_unbuffered_pub(struct NSQDUnbufferedCon *ucon);
+
+// unbuffered end
 
 typedef enum {NSQ_FRAME_TYPE_RESPONSE, NSQ_FRAME_TYPE_ERROR, NSQ_FRAME_TYPE_MESSAGE} frame_type;
 struct NSQDConnection;
@@ -107,21 +145,6 @@ int nsq_publisher_connect_to_nsqd(struct NSQPublisher *pub, const char *address,
 int nsq_publisher_connect_to_nsqlookupd(struct NSQPublisher *pub);
 int nsq_publisher_add_nsqlookupd_endpoint(struct NSQPublisher *pub, const char *address, int port);
 void nsq_publisher_set_loop(struct NSQPublisher *pub, struct ev_loop *loop);
-
-struct NSQDUnbufferedCon {
-    int sock;
-    struct ev_io read_ev;
-    struct ev_loop *loop;
-    int OK_recvd;
-    int ERROR_recvd;
-    int reading;
-};
-
-struct NSQDUnbufferedCon *nsq_new_unbuffered_pub(const char *address, int port);
-void free_unbuffered_pub(struct NSQDUnbufferedCon *ucon);
-int nsq_pub_unbuffered_connect(struct NSQDUnbufferedCon *ucon, const char *address, int port);
-int nsq_unbuffered_publish(struct NSQDUnbufferedCon *ucon, char *topic, char *msg, int size, int timeout_in_seconds, int wait_ok);
-int __nsq_unbuffered_publish(struct NSQDConnection *conn, char *topic, char *msg, int size, int flags);
 
 void nsq_run(struct ev_loop *loop);
 
