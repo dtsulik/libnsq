@@ -67,7 +67,9 @@ static void nsq_publisher_close_cb(struct NSQDConnection *conn, void *arg)
         pub->close_callback(pub, conn);
     }
 
-    LL_DELETE(pub->conns, conn);
+    if(pub->conns){
+        LL_DELETE(pub->conns, conn);
+    }
 
     // There is no lookupd, try to reconnect to nsqd directly
     if (pub->lookupd == NULL) {

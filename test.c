@@ -7,7 +7,7 @@
 #define _DEBUG(...) do {;} while (0)
 #endif
 
-#define NSQ_HOST "10.10.134.127"
+#define NSQ_HOST "127.0.0.1"
 #define NSQ_HOST2 "10.10.134.237"
 #define NS 1000000000
 
@@ -84,20 +84,34 @@ void *reader(void *p){
 
 int main(int argc, char **argv)
 {
-    pthread_t t;
-    pthread_attr_t t_attr;
-    pthread_attr_init(&t_attr);
-    pthread_attr_setdetachstate(&t_attr, PTHREAD_CREATE_DETACHED);
+// buffered
+    struct NSQReader *rdr;
+    struct ev_loop *loop;
+    void *ctx = NULL; //(void *)(new TestNsqMsgContext());
 
-    pthread_create(&t, &t_attr, writer, NSQ_HOST);
+    loop = ev_default_loop(0);
+    rdr = new_nsq_reader(loop, "test", "ch", (void *)ctx,
+        NULL, NULL, NULL, message_handler);
+
+    nsq_reader_connect_to_nsqd(rdr, "127.0.0.1", 4150);
+    nsq_run(loop);
+
+// unbuffered 
+
+    // pthread_t t;
+    // pthread_attr_t t_attr;
+    // pthread_attr_init(&t_attr);
+    // pthread_attr_setdetachstate(&t_attr, PTHREAD_CREATE_DETACHED);
+
+    // pthread_create(&t, &t_attr, writer, NSQ_HOST);
     // pthread_create(&t, &t_attr, writer, NSQ_HOST2);
 
     // pthread_create(&t, &t_attr, reader, NSQ_HOST);
     // pthread_create(&t, &t_attr, reader, NSQ_HOST2);
 
-    while(1){
-        sleep(1);
-    }
+    // while(1){
+    //     sleep(1);
+    // }
 
     return 0;
 }

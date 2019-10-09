@@ -155,6 +155,7 @@ struct NSQDUnbufferedCon *nsq_new_unbuffered_pub(const char *address, int port,
             ucon->connect_callback(ucon, ucon->cbarg);
         }
     }
+    printf("connected\n");
 
     // send magic
     char b[STACK_BUFFER_SIZE];
@@ -213,7 +214,21 @@ int tcp_connect(const char *address, int port){
         break;
     }
 
+    int flags = 0;
+    if ((flags = fcntl(sock, F_GETFL, NULL)) < 0) {
+        close(sock);
+        return 0;
+    }
+    if (fcntl(sock, F_SETFL, flags | O_NONBLOCK) == -1) {
+        close(sock);
+        return 0;
+    }
+
+retry:
     if(connect(sock, dstinfo->ai_addr, dstinfo->ai_addrlen) == -1){
+        if(errno == 115){
+            goto retry;
+        }
         close(sock);
         freeaddrinfo(dstinfo);
         return -3;
@@ -225,7 +240,8 @@ int tcp_connect(const char *address, int port){
 
 int nsq_upub(struct NSQDUnbufferedCon *primary, struct NSQDUnbufferedCon *secondary, char *topic, char *msg, int size){
     int rc = -1;
-    if(!primary){
+    _DEBUG("%s: topic: %s msg: %s size: %d\n", __FUNCTION__, topic, msg, size);
+    if(!primary && !secondary){
         return rc;
     }
     if(!secondary){
@@ -234,13 +250,19 @@ int nsq_upub(struct NSQDUnbufferedCon *primary, struct NSQDUnbufferedCon *second
             nsq_ucon_error(primary);
         }
     }else{
-        rc = nsq_unbuffered_publish(primary->sock, topic, msg, size);
-        if(rc < 0){
-            nsq_ucon_error(primary);
+        if(primary){
+            printf("trying primary\n");
+            rc = nsq_unbuffered_publish(primary->sock, topic, msg, size);
+            if(rc < 0){
+                printf("primary dead\n");
+                nsq_ucon_error(primary);
+            }
         }
         if(rc < 0){
+            printf("trying secondary\n");
             rc = nsq_unbuffered_publish(secondary->sock, topic, msg, size);
             if(rc < 0){
+                printf("secondary dead too\n");
                 nsq_ucon_error(primary);
             }
         }
