@@ -25,14 +25,6 @@
 #define DEFAULT_WRITE_BUF_LEN        16 * 1024
 #define DEFAULT_WRITE_BUF_CAPACITY   16 * 1024
 
-typedef struct
-{
-    pthread_mutex_t lock; /* global loop lock */
-    ev_async async_w;
-    pthread_t tid;
-    pthread_cond_t invoke_cv;
-} userdata;
-
 struct NSQDUnbufferedCon {
     pthread_mutex_t state_lock;
     uint8_t state;
