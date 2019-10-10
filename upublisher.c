@@ -80,7 +80,7 @@ void nsq_pub_unbuffered_read_cb(EV_P_ struct ev_io *w, int revents){
                     int total_sent = 0;
                     rc = 0;
                     while(total_sent < n){
-                        rc = send(w->fd, b, n, 0);
+                        rc = send(w->fd, b, n, MSG_NOSIGNAL);
                         if(rc <= 0) {
                             if(errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR){
                                 return;
@@ -116,8 +116,6 @@ void *nsq_new_unbuffered_pub_thr(void *p){
 
     srand(time(NULL));
     ev_loop(ucon->loop, 0);
-    printf("loop ended exiting\n");
-    exit(1);
     return NULL;
 }
 
@@ -155,7 +153,6 @@ struct NSQDUnbufferedCon *nsq_new_unbuffered_pub(const char *address, int port,
             ucon->connect_callback(ucon, ucon->cbarg);
         }
     }
-    printf("connected\n");
 
     // send magic
     char b[STACK_BUFFER_SIZE];
@@ -165,7 +162,7 @@ struct NSQDUnbufferedCon *nsq_new_unbuffered_pub(const char *address, int port,
     int total_sent = 0;
     rc = 0;
     while(total_sent < n){
-        rc = send(ucon->sock, b, n, 0);
+        rc = send(ucon->sock, b, n, MSG_NOSIGNAL);
         if(rc <= 0){
             if(errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR){
                 continue;
@@ -226,7 +223,7 @@ int tcp_connect(const char *address, int port){
 
 retry:
     if(connect(sock, dstinfo->ai_addr, dstinfo->ai_addrlen) == -1){
-        if(errno == 115){
+        if(errno == 115 || errno == 114){
             goto retry;
         }
         close(sock);
@@ -251,18 +248,15 @@ int nsq_upub(struct NSQDUnbufferedCon *primary, struct NSQDUnbufferedCon *second
         }
     }else{
         if(primary){
-            printf("trying primary\n");
             rc = nsq_unbuffered_publish(primary->sock, topic, msg, size);
             if(rc < 0){
-                printf("primary dead\n");
                 nsq_ucon_error(primary);
             }
+            return rc;
         }
         if(rc < 0){
-            printf("trying secondary\n");
             rc = nsq_unbuffered_publish(secondary->sock, topic, msg, size);
             if(rc < 0){
-                printf("secondary dead too\n");
                 nsq_ucon_error(primary);
             }
         }
@@ -295,7 +289,7 @@ int nsq_unbuffered_publish(int sock, char *topic, char *msg, int size){
     n += size;
 
     while(total_sent < n){
-        rc = send(sock, b, n, 0);
+        rc = send(sock, b, n, MSG_NOSIGNAL);
         if(rc <= 0){
             if(errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR){
                 continue;

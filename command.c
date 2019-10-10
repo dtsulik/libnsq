@@ -48,7 +48,7 @@ void nsq_nop(struct Buffer *buf)
     buffer_add(buf, b, n);
 }
 
-void nsq_pub(struct Buffer *buf, char *topic, int size, char *msg)
+void nsq_pub(struct Buffer *buf, char *topic, char *msg, int size)
 {
     char b[MAX_BUF_SIZE];
     size_t n;
@@ -56,6 +56,7 @@ void nsq_pub(struct Buffer *buf, char *topic, int size, char *msg)
     n = sprintf(b, "PUB %s%s", topic, NEW_LINE);
     uint32_t ordered = htobe32(size);
     memcpy(b + n, &ordered, 4);
-    memcpy(b + n + 4, msg, size);
-    buffer_add(buf, b, n + 4 + size);
+    // memcpy(b + n + 4, msg, size);
+    buffer_add(buf, b, n + 4);
+    buffer_add(buf, msg, size);
 }

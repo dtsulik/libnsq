@@ -176,6 +176,33 @@ struct HttpRequest *new_http_request(const char *url,
     return req;
 }
 
+struct HttpRequest *new_http_post_request(const char *url,
+    void (*callback)(struct HttpRequest *req, struct HttpResponse *resp, void *arg), void *cb_arg)
+{
+    struct HttpRequest *req;
+
+    req = (struct HttpRequest *)calloc(1, sizeof(struct HttpRequest));
+    req->data = new_buffer(4096, 0);
+    req->easy = curl_easy_init();
+    if (!req->easy) {
+        return 0;
+    }
+    req->url = strdup(url);
+    req->callback = callback;
+    req->cb_arg = cb_arg;
+
+    curl_easy_setopt(req->easy, CURLOPT_URL, req->url);
+    curl_easy_setopt(req->easy, CURLOPT_WRITEFUNCTION, write_cb);
+    curl_easy_setopt(req->easy, CURLOPT_WRITEDATA, req);
+    curl_easy_setopt(req->easy, CURLOPT_VERBOSE, 1L);
+    curl_easy_setopt(req->easy, CURLOPT_ERRORBUFFER, req->error);
+    curl_easy_setopt(req->easy, CURLOPT_PRIVATE, req);
+    curl_easy_setopt(req->easy, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(req->easy, CURLOPT_POST, 1L);
+
+    return req;
+}
+
 void free_http_request(struct HttpRequest *req)
 {
     if (req) {

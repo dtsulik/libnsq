@@ -133,10 +133,13 @@ struct NSQPublisher *new_nsq_publisher(struct ev_loop *loop, const char *topic, 
     void (*error_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn, void *arg),
     void (*msg_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn, struct NSQMessage *msg, void *ctx));
 void free_nsq_publisher(struct NSQPublisher *pub);
-int nsq_publisher_connect_to_nsqd(struct NSQPublisher *pub, const char *address, int port, struct NSQDConnection **conn);
+int nsq_publisher_connect_to_nsqd(struct NSQPublisher *pub, const char *address, int port);
 int nsq_publisher_connect_to_nsqlookupd(struct NSQPublisher *pub);
 int nsq_publisher_add_nsqlookupd_endpoint(struct NSQPublisher *pub, const char *address, int port);
 void nsq_publisher_set_loop(struct NSQPublisher *pub, struct ev_loop *loop);
+int nsq_publisher_pub(struct NSQPublisher *pub, char *msg, int size);
+
+int nsq_delete_topic(struct NSQPublisher *pub, char *address, int port, char *topic);
 
 void nsq_run(struct ev_loop *loop);
 
@@ -187,7 +190,7 @@ void nsq_ready(struct Buffer *buf, int count);
 void nsq_finish(struct Buffer *buf, const char *id);
 void nsq_requeue(struct Buffer *buf, const char *id, int timeout_ms);
 void nsq_nop(struct Buffer *buf);
-void nsq_pub(struct Buffer *buf, char *topic, int size, char *msg);
+void nsq_pub(struct Buffer *buf, char *topic, char *msg, int size);
 
 struct NSQMessage {
     int64_t timestamp;

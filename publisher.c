@@ -27,7 +27,7 @@ static void nsq_publisher_error_cb(struct NSQDConnection *conn, void *arg)
 {
     struct NSQPublisher *pub = (struct NSQPublisher *)arg;
 
-    _DEBUG("%s: %p\n", __FUNCTION__, pub);
+    _DEBUG("%s: %p, errno %d\n", __FUNCTION__, pub, errno);
 
     if (pub->error_callback) {
         pub->error_callback(pub, conn, pub->error_callback_arg);
@@ -88,10 +88,48 @@ static void nsq_publisher_reconnect_cb(EV_P_ struct ev_timer *w, int revents)
 
     if (pub->lookupd == NULL) {
         _DEBUG("%s: There is no lookupd, try to reconnect to nsqd directly\n", __FUNCTION__);
-        nsq_publisher_connect_to_nsqd(pub, conn->address, conn->port, NULL);
+        nsq_publisher_connect_to_nsqd(pub, conn->address, conn->port);
     }
 
     free_nsqd_connection(conn);
+}
+
+void nsq_delete_topic_cb(struct HttpRequest *req, struct HttpResponse *resp, void *arg)
+{
+    // printf("error: %s\n", req->error);
+    free_http_response(resp);
+    free_http_request(req);
+}
+
+size_t nsq_delete_topic_wr_cb(char *ptr, size_t size, size_t nmemb, void *arg)
+{
+    return size * nmemb;
+}
+
+int nsq_delete_topic(struct NSQPublisher *pub, char *address, int port, char *topic)
+{
+    int rc = -1;
+    char buf[256];
+    CURLcode res;
+    CURL *curl = NULL;
+    curl = curl_easy_init();
+
+    sprintf(buf, "http://%s:%d/topic/delete?topic=%s", address, port, topic);
+    if(curl) {
+        curl_easy_setopt(curl, CURLOPT_URL, buf);
+        curl_easy_setopt(curl, CURLOPT_POST, 1L);
+        curl_easy_setopt(curl, CURLOPT_VERBOSE, 0L);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, nsq_delete_topic_wr_cb);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, pub);
+        res = curl_easy_perform(curl);
+        if(res != CURLE_OK){
+            _DEBUG(stderr, "curl_easy_perform() failed: %s\n",
+            curl_easy_strerror(res));
+        }
+        rc = 0;
+        curl_easy_cleanup(curl);
+    }
+    return rc;
 }
 
 static void nsq_publisher_lookupd_poll_cb(EV_P_ struct ev_timer *w, int revents)
@@ -222,32 +260,47 @@ int nsq_publisher_add_nsqlookupd_endpoint(struct NSQPublisher *pub, const char *
     return 1;
 }
 
-int nsq_publisher_connect_to_nsqd(struct NSQPublisher *pub, const char *address, int port, struct NSQDConnection **conn)
+int nsq_publisher_connect_to_nsqd(struct NSQPublisher *pub, const char *address, int port)
 {
-    struct NSQDConnection *conn_ptr = NULL;
+    struct NSQDConnection *conn = NULL;
     int rc = -1;
 
     if(pub == NULL || address == NULL){
         return rc;
     }
 
-    conn_ptr = new_nsqd_pub_connection(pub->loop, address, port,
+    conn = new_nsqd_pub_connection(pub->loop, address, port,
         nsq_publisher_connect_cb, nsq_publisher_close_cb, nsq_publisher_success_cb, nsq_publisher_error_cb, nsq_publisher_msg_cb, NULL, pub);
 
-    rc = nsqd_connection_connect(conn_ptr);
+    rc = nsqd_connection_connect(conn);
     if (rc > 0) {
-        LL_APPEND(pub->conns, conn_ptr);
+        LL_APPEND(pub->conns, conn);
     }
 
     if (pub->lookupd == NULL) {
-        nsqd_connection_init_timer(conn_ptr, nsq_publisher_reconnect_cb);
+        nsqd_connection_init_timer(conn, nsq_publisher_reconnect_cb);
     }
 
-    if(conn != NULL){
-        if(*conn == NULL){
-            *conn = conn_ptr;
-        }        
-    }
+    return rc;
+}
 
+int nsq_publisher_pub(struct NSQPublisher *pub, char *msg, int size)
+{
+    int rc = -1;
+    struct NSQDConnection *conn = NULL;
+    if(pub){
+        if(pub->conns){
+            LL_FOREACH(pub->conns, conn) {
+                if(conn){
+                    buffer_reset(conn->command_buf);
+                    nsq_pub(conn->command_buf, pub->topic, msg, size);
+                    rc = buffered_socket_write_buffer(conn->bs, conn->command_buf);
+                    if(rc > 0){
+                        break;
+                    }
+                }
+            }
+        }
+    }
     return rc;
 }
