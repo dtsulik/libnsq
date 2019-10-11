@@ -20,10 +20,14 @@ void nsq_ucon_reconnect(EV_P_ ev_timer *w, int revents){
     int rc = tcp_connect(ucon->address, ucon->port);
 
     if(rc <= 0){
-        // _DEBUG("%s: %p - errno %d\n", __FUNCTION__, ucon, errno);
+        _DEBUG("%s: %p - errno %d\n", __FUNCTION__, ucon, errno);
     }else{
         ucon->state = NSQ_CONNECTED;
         ucon->sock = rc;
+        ucon->read_ev.data = ucon;
+        ev_io_init(&ucon->read_ev, nsq_pub_unbuffered_read_cb, ucon->sock, EV_READ);
+        ev_io_start(ucon->loop, &ucon->read_ev);
+
         if(ucon->connect_callback){
             ucon->connect_callback(ucon, ucon->cbarg);
         }
@@ -37,9 +41,10 @@ void nsq_ucon_error(struct NSQDUnbufferedCon *ucon){
         return;
     }else{
         pthread_mutex_lock(&ucon->state_lock);
+        ev_io_stop(ucon->loop, &ucon->read_ev);
+        close(ucon->sock);
         ucon->state = NSQ_DISCONNECTED;
         pthread_mutex_unlock(&ucon->state_lock);
-        close(ucon->sock);
     }
 
     if(ucon->error_callback){

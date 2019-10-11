@@ -90,18 +90,18 @@ static void pub_conn_handler(struct NSQDUnbufferedCon *ucon, void *arg)
 }
 
 void *writer(void *p){
-    struct NSQDUnbufferedCon *primary = nsq_new_unbuffered_pub(NSQ_HOST2, 4150,
+    struct NSQDUnbufferedCon *primary = nsq_new_unbuffered_pub(NSQ_LOCAL, 4150,
         pub_conn_handler, pub_error_handler, NSQ_HOST);
 
-    struct NSQDUnbufferedCon *secondary = nsq_new_unbuffered_pub(NSQ_HOST, 4150,
-        pub_conn_handler, pub_error_handler, NSQ_HOST2);
+    // struct NSQDUnbufferedCon *secondary = nsq_new_unbuffered_pub(NSQ_LOCAL, 4150,
+    //     pub_conn_handler, pub_error_handler, NSQ_HOST2);
 
     int i;
     struct timespec s;
-    s.tv_sec = 0;
-    s.tv_nsec = 5;
+    s.tv_sec = 3;
+    s.tv_nsec = 5000000;
     for(i = 0; i < 1000000; i++){
-        nsq_upub(primary, secondary, "spam", "pingpong", 8);
+        nsq_upub(primary, NULL, "spam", "pingpong", 8);
         nanosleep(&s, NULL);
     }
 
@@ -141,7 +141,7 @@ void *puber(void *p){
 
     pub_p->max_in_flight = 50;
     pub_p->ctx = userdata;
-    nsq_publisher_connect_to_nsqd(*pub, NSQ_LOCAL, 4150);
+    nsq_publisher_connect_to_nsqd(*pub, NSQ_HOST, 4150);
     // nsq_publisher_connect_to_nsqd(*pub, NSQ_HOST2, 4150);
     // ev loop run
     nsq_run(loop);
@@ -155,18 +155,16 @@ int main(int argc, char **argv)
     pthread_attr_init(&t_attr);
     pthread_attr_setdetachstate(&t_attr, PTHREAD_CREATE_DETACHED);
 
-    struct NSQPublisher *pub = NULL;
-    pthread_create(&t, &t_attr, puber, &pub);
+    // struct NSQPublisher *pub = NULL;
+    // pthread_create(&t, &t_attr, puber, &pub);
 
-    // pthread_create(&t, &t_attr, writer, NSQ_HOST);
+    pthread_create(&t, &t_attr, writer, NSQ_HOST);
     // pthread_create(&t, &t_attr, writer, NSQ_HOST2);
 
     // pthread_create(&t, &t_attr, reader, NSQ_HOST);
     // pthread_create(&t, &t_attr, reader, NSQ_HOST2);
 
     sleep(5);
-
-    // printf("deleting topic\n");
 
     // int rc = nsq_delete_topic(pub, NSQ_HOST, 4151, "spam");
     // if(rc < 0){
@@ -177,7 +175,7 @@ int main(int argc, char **argv)
 
     printf("done\n");
     while(1){
-        nsq_publisher_pub(pub);
+        sleep(1);
     }
     return 0;
 }
