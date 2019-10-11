@@ -94,6 +94,7 @@ struct NSQReader {
 };
 
 struct NSQPublisher {
+    pthread_mutex_t *lock;
     char *topic;
     char *channel;
     void *ctx; //context for call back
@@ -111,6 +112,7 @@ struct NSQPublisher {
     void (*close_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn);
     void (*success_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn, void *arg);
     void (*error_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn, void *arg);
+    void (*async_write_callback)(struct BufferedSocket *buffsock, void *arg);
     void (*msg_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn, struct NSQMessage *msg, void *ctx);
 };
 
@@ -131,13 +133,14 @@ struct NSQPublisher *new_nsq_publisher(struct ev_loop *loop, const char *topic, 
     void (*close_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn),
     void (*success_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn, void *arg),
     void (*error_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn, void *arg),
+    void (*async_write_callback)(struct BufferedSocket *buffsock, void *arg),
     void (*msg_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn, struct NSQMessage *msg, void *ctx));
 void free_nsq_publisher(struct NSQPublisher *pub);
 int nsq_publisher_connect_to_nsqd(struct NSQPublisher *pub, const char *address, int port);
 int nsq_publisher_connect_to_nsqlookupd(struct NSQPublisher *pub);
 int nsq_publisher_add_nsqlookupd_endpoint(struct NSQPublisher *pub, const char *address, int port);
 void nsq_publisher_set_loop(struct NSQPublisher *pub, struct ev_loop *loop);
-int nsq_publisher_pub(struct NSQPublisher *pub, char *msg, int size);
+int nsq_publisher_pub(struct NSQPublisher *pub);
 
 int nsq_delete_topic(struct NSQPublisher *pub, char *address, int port, char *topic);
 
@@ -173,6 +176,7 @@ struct NSQDConnection *new_nsqd_pub_connection(struct ev_loop *loop, const char 
     void (*close_callback)(struct NSQDConnection *conn, void *arg),
     void (*success_callback)(struct NSQDConnection *conn, void *arg),
     void (*error_callback)(struct NSQDConnection *conn, void *arg),
+    void (*async_write_callback)(struct BufferedSocket *buffsock, void *arg),
     void (*msg_callback)(struct NSQDConnection *conn, struct NSQMessage *msg, void *arg),
     struct NSQReaderCfg *cfg,
     void *arg);

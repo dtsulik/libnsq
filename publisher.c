@@ -60,8 +60,11 @@ static void nsq_publisher_msg_cb(struct NSQDConnection *conn, struct NSQMessage 
 static void nsq_publisher_close_cb(struct NSQDConnection *conn, void *arg)
 {
     struct NSQPublisher *pub = (struct NSQPublisher *)arg;
-
+    if(!pub){
+        return;
+    }
     _DEBUG("%s: %p\n", __FUNCTION__, pub);
+    pthread_mutex_lock(pub->lock);
 
     if (pub->close_callback) {
         pub->close_callback(pub, conn);
@@ -77,6 +80,7 @@ static void nsq_publisher_close_cb(struct NSQDConnection *conn, void *arg)
     } else {
         free_nsqd_connection(conn);
     }
+    pthread_mutex_unlock(pub->lock);
 }
 
 void nsq_lookupd_request_cb(struct HttpRequest *req, struct HttpResponse *resp, void *arg);
@@ -121,9 +125,11 @@ int nsq_delete_topic(struct NSQPublisher *pub, char *address, int port, char *to
         curl_easy_setopt(curl, CURLOPT_VERBOSE, 0L);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, nsq_delete_topic_wr_cb);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, pub);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 2L);
+        // curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
         res = curl_easy_perform(curl);
         if(res != CURLE_OK){
-            _DEBUG(stderr, "curl_easy_perform() failed: %s\n",
+            _DEBUG("curl_easy_perform() failed: %s\n",
             curl_easy_strerror(res));
         }
         rc = 0;
@@ -171,6 +177,7 @@ struct NSQPublisher *new_nsq_publisher(struct ev_loop *loop, const char *topic, 
     void (*close_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn),
     void (*success_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn, void *arg),
     void (*error_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn, void *arg),
+    void (*async_write_callback)(struct BufferedSocket *buffsock, void *arg),
     void (*msg_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn, struct NSQMessage *msg, void *ctx))
 {
     struct NSQPublisher *pub;
@@ -199,6 +206,8 @@ struct NSQPublisher *new_nsq_publisher(struct ev_loop *loop, const char *topic, 
         pub->cfg->write_buf_len        = cfg->write_buf_len        <= 0 ? DEFAULT_WRITE_BUF_LEN        : cfg->write_buf_len;
         pub->cfg->write_buf_capacity   = cfg->write_buf_capacity   <= 0 ? DEFAULT_WRITE_BUF_CAPACITY   : cfg->write_buf_capacity;
     }
+    pub->lock = malloc(sizeof(pthread_mutex_t));
+    pthread_mutex_init(pub->lock, NULL);
     pub->topic = strdup(topic);
     pub->channel = strdup(channel);
     pub->max_in_flight = 1;
@@ -207,6 +216,7 @@ struct NSQPublisher *new_nsq_publisher(struct ev_loop *loop, const char *topic, 
     pub->msg_callback = msg_callback;
     pub->success_callback = success_callback;
     pub->error_callback = error_callback;
+    pub->async_write_callback = async_write_callback;
     pub->ctx = ctx;
     pub->conns = NULL;
     pub->lookupd = NULL;
@@ -270,7 +280,8 @@ int nsq_publisher_connect_to_nsqd(struct NSQPublisher *pub, const char *address,
     }
 
     conn = new_nsqd_pub_connection(pub->loop, address, port,
-        nsq_publisher_connect_cb, nsq_publisher_close_cb, nsq_publisher_success_cb, nsq_publisher_error_cb, nsq_publisher_msg_cb, NULL, pub);
+        nsq_publisher_connect_cb, nsq_publisher_close_cb, nsq_publisher_success_cb,
+        nsq_publisher_error_cb, pub->async_write_callback, nsq_publisher_msg_cb, NULL, pub);
 
     rc = nsqd_connection_connect(conn);
     if (rc > 0) {
@@ -284,23 +295,23 @@ int nsq_publisher_connect_to_nsqd(struct NSQPublisher *pub, const char *address,
     return rc;
 }
 
-int nsq_publisher_pub(struct NSQPublisher *pub, char *msg, int size)
+int nsq_publisher_pub(struct NSQPublisher *pub)
 {
     int rc = -1;
     struct NSQDConnection *conn = NULL;
     if(pub){
+        pthread_mutex_lock(pub->lock);
         if(pub->conns){
             LL_FOREACH(pub->conns, conn) {
                 if(conn){
-                    buffer_reset(conn->command_buf);
-                    nsq_pub(conn->command_buf, pub->topic, msg, size);
-                    rc = buffered_socket_write_buffer(conn->bs, conn->command_buf);
-                    if(rc > 0){
+                    rc = buffered_socket_async_write(conn->bs);
+                    if(rc == 0){
                         break;
                     }
                 }
             }
         }
+        pthread_mutex_unlock(pub->lock);
     }
     return rc;
 }

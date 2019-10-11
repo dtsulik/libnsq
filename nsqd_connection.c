@@ -134,7 +134,7 @@ struct NSQDConnection *new_nsqd_connection(struct ev_loop *loop, const char *add
         rdr->cfg->read_buf_len, rdr->cfg->read_buf_capacity,
         rdr->cfg->write_buf_len, rdr->cfg->write_buf_capacity,
         nsqd_connection_connect_cb, nsqd_connection_close_cb,
-        NULL, NULL, nsqd_connection_error_cb,
+        NULL, NULL, NULL, nsqd_connection_error_cb,
         conn);
 
     return conn;
@@ -145,13 +145,14 @@ struct NSQDConnection *new_nsqd_pub_connection(struct ev_loop *loop, const char 
     void (*close_callback)(struct NSQDConnection *conn, void *arg),
     void (*success_callback)(struct NSQDConnection *conn, void *arg),
     void (*error_callback)(struct NSQDConnection *conn, void *arg),
+    void (*async_write_callback)(struct BufferedSocket *buffsock, void *arg),
     void (*msg_callback)(struct NSQDConnection *conn, struct NSQMessage *msg, void *arg),
     struct NSQReaderCfg *cfg,
     void *arg)
 {
     struct NSQDConnection *conn;
 
-    conn = (struct NSQDConnection *)malloc(sizeof(struct NSQDConnection));
+    conn = (struct NSQDConnection *)calloc(1, sizeof(struct NSQDConnection));
     conn->address = strdup(address);
     conn->port = port;
     if(cfg == NULL){
@@ -174,14 +175,14 @@ struct NSQDConnection *new_nsqd_pub_connection(struct ev_loop *loop, const char 
             DEFAULT_READ_BUF_LEN, DEFAULT_READ_BUF_CAPACITY,
             DEFAULT_WRITE_BUF_LEN, DEFAULT_WRITE_BUF_CAPACITY,
             nsqd_connection_connect_cb, nsqd_connection_close_cb,
-            NULL, NULL, nsqd_connection_error_cb,
+            NULL, NULL, async_write_callback, nsqd_connection_error_cb,
             conn);
     }else{
         conn->bs = new_buffered_socket(loop, address, port,
             cfg->read_buf_len, cfg->read_buf_capacity,
             cfg->write_buf_len, cfg->write_buf_capacity,
             nsqd_connection_connect_cb, nsqd_connection_close_cb,
-            NULL, NULL, nsqd_connection_error_cb,
+            NULL, NULL, async_write_callback, nsqd_connection_error_cb,
             conn);
     }
 

@@ -29,6 +29,26 @@ static void error_callback(struct NSQPublisher *pub, struct NSQDConnection *conn
     _DEBUG("%s: handler\n", __FUNCTION__);
     erroed++;
 }
+static void async_write_callback(struct BufferedSocket *bs, void *arg){
+    struct NSQDConnection *conn = (struct NSQDConnection *)arg;
+    struct NSQPublisher *pub = conn->arg;
+
+    struct Buffer *buf;    
+    buf = new_buffer(256, 1024);
+
+    char b[1024];
+    size_t n;
+    n = sprintf(b, "GET / HTTP/1.0\r\n\r\n");
+
+    buffer_reset(buf);
+    buffer_add(buf, b, n);
+    buffered_socket_write_buffer(bs, buf);
+
+    // buffer_reset(conn->command_buf);
+    // nsq_pub(conn->command_buf, pub->topic, msg, size);
+
+    printf("%s: cbarg %s\n", __FUNCTION__, (char *)pub->ctx);
+}
 static void msg_callback(struct NSQPublisher *pub, struct NSQDConnection *conn, struct NSQMessage *msg, void *ctx){
     _DEBUG("%s: handler\n", __FUNCTION__);
 }
@@ -113,12 +133,15 @@ void *puber(void *p){
 
     // reader
     *pub = new_nsq_publisher(loop, "spam", "ch", NULL,
-        NULL, connect_callback, close_callback, success_callback, error_callback, msg_callback);
+        NULL, connect_callback, close_callback, success_callback,
+        error_callback, async_write_callback, msg_callback);
 
     struct NSQPublisher *pub_p = *pub;
+    char userdata[] = {"userdata"};
 
     pub_p->max_in_flight = 50;
-    nsq_publisher_connect_to_nsqd(*pub, NSQ_HOST, 4150);
+    pub_p->ctx = userdata;
+    nsq_publisher_connect_to_nsqd(*pub, NSQ_LOCAL, 4150);
     // nsq_publisher_connect_to_nsqd(*pub, NSQ_HOST2, 4150);
     // ev loop run
     nsq_run(loop);
@@ -143,27 +166,18 @@ int main(int argc, char **argv)
 
     sleep(5);
 
-    int rc = nsq_delete_topic(pub, NSQ_HOST, 4151, "spam");
-    if(rc < 0){
-        printf("error deleting topic\n");
-    }
+    // printf("deleting topic\n");
 
-    struct timespec s;
-    s.tv_sec = 0;
-    s.tv_nsec = 100;
+    // int rc = nsq_delete_topic(pub, NSQ_HOST, 4151, "spam");
+    // if(rc < 0){
+    //     printf("error deleting topic\n");
+    // }
+    // printf("topic gone\n");
 
-    int i = 0;
-    for(i = 0; i < 10000; i++){
-        int rc = nsq_publisher_pub(pub, "test", 4);
-        if(rc < 0){
-            printf("rc: %d errno: %d\n", rc, errno);
-        }
-        nanosleep(&s, NULL);
-    }
 
     printf("done\n");
     while(1){
-        sleep(1);
+        nsq_publisher_pub(pub);
     }
     return 0;
 }

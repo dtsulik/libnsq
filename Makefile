@@ -3,8 +3,8 @@ DESTDIR=
 LIBDIR=${PREFIX}/lib
 INCDIR=${PREFIX}/include
 
-# CFLAGS+=-g -Wall -O2 -DDEBUG -fPIC -pthread
-CFLAGS+=-g -Wall -O2 -fPIC -pthread
+CFLAGS+=-g -Wall -O2 -DDEBUG -fPIC -pthread
+# CFLAGS+=-g -Wall -O2 -fPIC -pthread
 LIBS=-lev -levbuffsock -lcurl -lpthread
 AR=ar
 AR_FLAGS=rc
@@ -17,7 +17,7 @@ else
 LIBS+=-ljson-c
 endif
 
-all: libnsq test
+all: clean libnsq test
 
 libnsq: libnsq.a
 
@@ -42,7 +42,10 @@ test-lookupd: test.o libnsq.a
 clean:
 	rm -rf libnsq.a test-nsqd test-lookupd test.dSYM *.o
 
-.PHONY: install clean all test
+.PHONY: install clean all test libnsq libevbuffsock
+
+libevbuffsock:
+	cd ../ && git clone https://github.com/dtsulik/libevbuffsock.git && $(MAKE) && $(MAKE) install
 
 install:
 	install -m 755 -d ${DESTDIR}${INCDIR}
