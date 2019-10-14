@@ -125,8 +125,9 @@ int nsq_delete_topic(struct NSQPublisher *pub, char *address, int port, char *to
         curl_easy_setopt(curl, CURLOPT_VERBOSE, 0L);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, nsq_delete_topic_wr_cb);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, pub);
+        curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
         curl_easy_setopt(curl, CURLOPT_TIMEOUT, 2L);
-        // curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 2L);
         res = curl_easy_perform(curl);
         if(res != CURLE_OK){
             _DEBUG("curl_easy_perform() failed: %s\n",
