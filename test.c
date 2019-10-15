@@ -158,20 +158,18 @@ int main(int argc, char **argv)
     // struct NSQPublisher *pub = NULL;
     // pthread_create(&t, &t_attr, puber, &pub);
 
-    pthread_create(&t, &t_attr, writer, NSQ_HOST);
+    // pthread_create(&t, &t_attr, writer, NSQ_HOST);
     // pthread_create(&t, &t_attr, writer, NSQ_HOST2);
 
     // pthread_create(&t, &t_attr, reader, NSQ_HOST);
     // pthread_create(&t, &t_attr, reader, NSQ_HOST2);
 
-    sleep(5);
-
-    // int rc = nsq_delete_topic(pub, NSQ_HOST, 4151, "spam");
-    // if(rc < 0){
-    //     printf("error deleting topic\n");
-    // }
-    // printf("topic gone\n");
-
+    printf("trying to delete topic\n");
+    int rc = nsq_delete_topic(NSQ_HOST, 4151, "spam");
+    if(rc < 0){
+        printf("error deleting topic\n");
+    }
+    printf("topic gone\n");
 
     printf("done\n");
     while(1){

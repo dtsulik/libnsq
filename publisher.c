@@ -98,19 +98,12 @@ static void nsq_publisher_reconnect_cb(EV_P_ struct ev_timer *w, int revents)
     free_nsqd_connection(conn);
 }
 
-void nsq_delete_topic_cb(struct HttpRequest *req, struct HttpResponse *resp, void *arg)
-{
-    // printf("error: %s\n", req->error);
-    free_http_response(resp);
-    free_http_request(req);
-}
-
 size_t nsq_delete_topic_wr_cb(char *ptr, size_t size, size_t nmemb, void *arg)
 {
     return size * nmemb;
 }
 
-int nsq_delete_topic(struct NSQPublisher *pub, char *address, int port, char *topic)
+int nsq_delete_topic(char *address, int port, char *topic)
 {
     int rc = -1;
     char buf[256];
@@ -120,12 +113,20 @@ int nsq_delete_topic(struct NSQPublisher *pub, char *address, int port, char *to
 
     sprintf(buf, "http://%s:%d/topic/delete?topic=%s", address, port, topic);
     if(curl) {
+        struct curl_slist *chunk = NULL;
+        char hosts_str[64];
+        snprintf(hosts_str, 64, "Host: %s:%d", address, port);
+        chunk = curl_slist_append(chunk, "Accept: */*");
+        chunk = curl_slist_append(chunk, hosts_str);
+
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
         curl_easy_setopt(curl, CURLOPT_URL, buf);
         curl_easy_setopt(curl, CURLOPT_POST, 1L);
         curl_easy_setopt(curl, CURLOPT_VERBOSE, 0L);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, nsq_delete_topic_wr_cb);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, pub);
         curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, 0L);
         curl_easy_setopt(curl, CURLOPT_TIMEOUT, 2L);
         curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 2L);
         res = curl_easy_perform(curl);
@@ -134,6 +135,7 @@ int nsq_delete_topic(struct NSQPublisher *pub, char *address, int port, char *to
             curl_easy_strerror(res));
         }
         rc = 0;
+        curl_slist_free_all(chunk);
         curl_easy_cleanup(curl);
     }
     return rc;

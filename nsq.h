@@ -142,7 +142,7 @@ int nsq_publisher_add_nsqlookupd_endpoint(struct NSQPublisher *pub, const char *
 void nsq_publisher_set_loop(struct NSQPublisher *pub, struct ev_loop *loop);
 int nsq_publisher_pub(struct NSQPublisher *pub);
 
-int nsq_delete_topic(struct NSQPublisher *pub, char *address, int port, char *topic);
+int nsq_delete_topic(char *address, int port, char *topic);
 
 void nsq_run(struct ev_loop *loop);
 
