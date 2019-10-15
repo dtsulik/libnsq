@@ -5,7 +5,7 @@ INCDIR=${PREFIX}/include
 
 CFLAGS+=-g -Wall -O2 -DDEBUG -fPIC -pthread -I../INC
 # CFLAGS+=-g -Wall -O2 -fPIC -pthread
-LIBS=-lev -levbuffsock -lcurl -lpthread
+LIBS=-L../lib -lev -levbuffsock -lcurl -lpthread
 AR=ar
 AR_FLAGS=rc
 RANLIB=ranlib
