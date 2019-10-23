@@ -91,7 +91,7 @@ static void pub_conn_handler(struct NSQDUnbufferedCon *ucon, void *arg)
 
 void *writer(void *p){
     struct NSQDUnbufferedCon *primary = nsq_new_unbuffered_pub(NSQ_HOST, 4150,
-        pub_conn_handler, pub_error_handler, NSQ_HOST);
+        pub_conn_handler, pub_error_handler, NSQ_HOST, 1.);
 
     printf("connected ? %p", primary);
 
@@ -100,14 +100,16 @@ void *writer(void *p){
 
     int i;
     struct timespec s;
-    s.tv_sec = 3;
-    s.tv_nsec = 5000000;
-    for(i = 0; i < 1000000; i++){
-        nsq_upub(primary, NULL, "spam", "pingpong", 8);
+    s.tv_sec = 0;
+    s.tv_nsec = 1000000;
+    for(i = 0; i < 10000; i++){
+        int rc = nsq_upub(primary, NULL, "spam", "pingpong", 8);
+        printf("rc = %d\n", rc);
         nanosleep(&s, NULL);
     }
 
     printf("done %d\n", erroed);
+    free_unbuffered_pub(primary);
     return NULL;
 }
 
@@ -163,10 +165,10 @@ int main(int argc, char **argv)
     // struct NSQPublisher *pub = NULL;
     // pthread_create(&t, &t_attr, puber, &pub);
 
-    // pthread_create(&t, &t_attr, writer, NSQ_HOST);
+    pthread_create(&t, &t_attr, writer, NSQ_HOST);
     // pthread_create(&t, &t_attr, writer, NSQ_HOST2);
 
-    pthread_create(&t, &t_attr, reader, NSQ_HOST);
+    // pthread_create(&t, &t_attr, reader, NSQ_HOST);
     // pthread_create(&t, &t_attr, reader, NSQ_HOST2);
 
     // printf("trying to delete topic\n");
@@ -176,9 +178,8 @@ int main(int argc, char **argv)
     // }
     // printf("topic gone\n");
 
-    printf("done\n");
     while(1){
-        sleep(1);
+        sleep(5);
     }
     return 0;
 }

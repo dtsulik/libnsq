@@ -8,10 +8,27 @@
 #define _DEBUG(...) do {;} while (0)
 #endif
 
+void nsq_ucon_error(struct NSQDUnbufferedCon *ucon){
+    _DEBUG("%s: %p errno %d\n", __FUNCTION__, ucon, errno);
+    if(!ucon){
+        return;
+    }else{
+        pthread_mutex_lock(&ucon->state_lock);
+        ev_io_stop(ucon->loop, &ucon->read_ev);
+        close(ucon->sock);
+        ucon->state = NSQ_DISCONNECTED;
+        pthread_mutex_unlock(&ucon->state_lock);
+    }
+
+    if(ucon->error_callback){
+        ucon->error_callback(ucon, ucon->cbarg);
+    }
+}
+
 void nsq_ucon_reconnect(EV_P_ ev_timer *w, int revents){
     struct NSQDUnbufferedCon *ucon = (struct NSQDUnbufferedCon *)w->data;
-    // _DEBUG("%s: %p - %d\n", __FUNCTION__, ucon, ucon->state);
-    if(!(ucon->state == NSQ_DISCONNECTED)){
+    _DEBUG("%s: %p - %d\n", __FUNCTION__, ucon, ucon->state);
+    if(!ucon || !(ucon->state == NSQ_DISCONNECTED)){
         return;
     }
 
@@ -28,28 +45,32 @@ void nsq_ucon_reconnect(EV_P_ ev_timer *w, int revents){
         ev_io_init(&ucon->read_ev, nsq_pub_unbuffered_read_cb, ucon->sock, EV_READ);
         ev_io_start(ucon->loop, &ucon->read_ev);
 
+        // send magic
+        char b[STACK_BUFFER_SIZE];
+        size_t n;
+        n = sprintf(b, "  V2");
+
+        int total_sent = 0;
+        rc = 0;
+        while(total_sent < n){
+            rc = send(ucon->sock, b, n, MSG_NOSIGNAL);
+            if(rc <= 0){
+                if(errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR ||
+                    errno == EINPROGRESS || errno == EALREADY){
+                    continue;
+                }
+                nsq_ucon_error(ucon);
+                break;
+            }else{
+                total_sent += rc;
+            }
+        }
+
         if(ucon->connect_callback){
             ucon->connect_callback(ucon, ucon->cbarg);
         }
     }
     pthread_mutex_unlock(&ucon->state_lock);
-}
-
-void nsq_ucon_error(struct NSQDUnbufferedCon *ucon){
-    _DEBUG("%s: %p\n", __FUNCTION__, ucon);
-    if(!ucon){
-        return;
-    }else{
-        pthread_mutex_lock(&ucon->state_lock);
-        ev_io_stop(ucon->loop, &ucon->read_ev);
-        close(ucon->sock);
-        ucon->state = NSQ_DISCONNECTED;
-        pthread_mutex_unlock(&ucon->state_lock);
-    }
-
-    if(ucon->error_callback){
-        ucon->error_callback(ucon, ucon->cbarg);
-    }
 }
 
 void nsq_pub_unbuffered_read_cb(EV_P_ struct ev_io *w, int revents){
@@ -64,7 +85,8 @@ void nsq_pub_unbuffered_read_cb(EV_P_ struct ev_io *w, int revents){
 
     int rc = read(w->fd, b, STACK_BUFFER_SIZE);
     if(rc <= 0) {
-        if(errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR){
+        if(errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR ||
+            errno == EINPROGRESS || errno == EALREADY){
             return;
         }
         goto error;
@@ -78,6 +100,7 @@ void nsq_pub_unbuffered_read_cb(EV_P_ struct ev_io *w, int revents){
         char *data = b + 8;
         switch(current_frame_type){
             case NSQ_FRAME_TYPE_RESPONSE : {
+                if(rc < 11){break;}
                 if (strncmp(data, "_heartbeat_", 11) == 0) {
                     size_t n;
                     n = sprintf(b, "NOP\n");
@@ -87,7 +110,8 @@ void nsq_pub_unbuffered_read_cb(EV_P_ struct ev_io *w, int revents){
                     while(total_sent < n){
                         rc = send(w->fd, b, n, MSG_NOSIGNAL);
                         if(rc <= 0) {
-                            if(errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR){
+                            if(errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR ||
+                                errno == EINPROGRESS || errno == EALREADY){
                                 return;
                             }
                             goto error;
@@ -112,7 +136,7 @@ void *nsq_new_unbuffered_pub_thr(void *p){
     struct NSQDUnbufferedCon *ucon = (struct NSQDUnbufferedCon *)p;
 
     ucon->reconnect_timer.data = ucon;
-    ev_timer_init(&ucon->reconnect_timer, nsq_ucon_reconnect, 0.01, 0.01);
+    ev_timer_init(&ucon->reconnect_timer, nsq_ucon_reconnect, ucon->reconnect_interval, ucon->reconnect_interval);
     ev_timer_start(ucon->loop, &ucon->reconnect_timer);
 
     ucon->read_ev.data = ucon;
@@ -122,21 +146,25 @@ void *nsq_new_unbuffered_pub_thr(void *p){
     }
 
     srand(time(NULL));
+    _DEBUG("%s: starting ev loop\n", __FUNCTION__);
     ev_loop(ucon->loop, 0);
+    _DEBUG("%s: exiting ev loop\n", __FUNCTION__);
     return NULL;
 }
 
 void free_unbuffered_pub(struct NSQDUnbufferedCon *ucon){
-    ev_break(ucon->loop, EVBREAK_ONE);
+    ev_timer_stop(ucon->loop, &ucon->reconnect_timer);
     ev_io_stop(ucon->loop, &ucon->read_ev);
+    // ev_break(ucon->loop, EVBREAK_ONE);
+    // ev_loop_destroy(ucon->loop);
     close(ucon->sock);
-    ev_loop_destroy(ucon->loop);
     free(ucon);
 }
 
 struct NSQDUnbufferedCon *nsq_new_unbuffered_pub(const char *address, int port,
     void (*connect_callback)(struct NSQDUnbufferedCon *ucon, void *cbarg),
-    void (*error_callback)(struct NSQDUnbufferedCon *ucon, void *cbarg), void *cbarg){
+    void (*error_callback)(struct NSQDUnbufferedCon *ucon, void *cbarg), void *cbarg,
+    double reconnect_interval){
 
     struct NSQDUnbufferedCon *ucon = calloc(1, sizeof(struct NSQDUnbufferedCon));
     ucon->connect_callback = connect_callback;
@@ -145,6 +173,7 @@ struct NSQDUnbufferedCon *nsq_new_unbuffered_pub(const char *address, int port,
     snprintf(ucon->address, 127, "%s", address);
     ucon->port = port;
     ucon->loop = ev_loop_new(0);
+    ucon->reconnect_interval = reconnect_interval;
 
     pthread_mutex_init(&ucon->state_lock, NULL);
     ucon->state = NSQ_CONNECTING;
@@ -152,7 +181,7 @@ struct NSQDUnbufferedCon *nsq_new_unbuffered_pub(const char *address, int port,
     int rc = tcp_connect(address, port);
 
     if(rc <= 0){
-        goto ucon_error;
+        nsq_ucon_error(ucon);
     }else{
         ucon->state = NSQ_CONNECTED;
         ucon->sock = rc;
@@ -171,10 +200,12 @@ struct NSQDUnbufferedCon *nsq_new_unbuffered_pub(const char *address, int port,
     while(total_sent < n){
         rc = send(ucon->sock, b, n, MSG_NOSIGNAL);
         if(rc <= 0){
-            if(errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR){
+            if(errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR ||
+                errno == EINPROGRESS || errno == EALREADY){
                 continue;
             }
-            goto ucon_error;
+            nsq_ucon_error(ucon);
+            break;
         }else{
             total_sent += rc;
         }
@@ -187,9 +218,6 @@ struct NSQDUnbufferedCon *nsq_new_unbuffered_pub(const char *address, int port,
     pthread_create(&t, &t_attr, nsq_new_unbuffered_pub_thr, ucon);
 
     return ucon;
-ucon_error:
-    nsq_ucon_error(ucon);
-    return NULL;
 }
 
 int tcp_connect(const char *address, int port){
@@ -232,10 +260,11 @@ retry:
     if(connect(sock, dstinfo->ai_addr, dstinfo->ai_addrlen) == -1){
         if(errno == 115 || errno == 114){
             goto retry;
+        }else{
+            close(sock);
+            freeaddrinfo(dstinfo);
+            return -3;            
         }
-        close(sock);
-        freeaddrinfo(dstinfo);
-        return -3;
     }
 
     freeaddrinfo(dstinfo);
@@ -246,26 +275,32 @@ int nsq_upub(struct NSQDUnbufferedCon *primary, struct NSQDUnbufferedCon *second
     int rc = -1;
     _DEBUG("%s: topic: %s msg: %s size: %d\n", __FUNCTION__, topic, msg, size);
     if(!primary && !secondary){
-        return rc;
+        return 0;
     }
     if(!secondary){
-        rc = nsq_unbuffered_publish(primary->sock, topic, msg, size);
-        if(rc < 0){
-            nsq_ucon_error(primary);
-        }
-    }else{
-        if(primary){
+        if(primary->state == NSQ_CONNECTED){
             rc = nsq_unbuffered_publish(primary->sock, topic, msg, size);
             if(rc < 0){
                 nsq_ucon_error(primary);
             }
-            return rc;
+        }else{return -1;}
+    }else{
+        if(primary){
+            if(primary->state == NSQ_CONNECTED){
+                rc = nsq_unbuffered_publish(primary->sock, topic, msg, size);
+                if(rc < 0){
+                    nsq_ucon_error(primary);
+                }
+                return rc;
+            }else{return -1;}
         }
         if(rc < 0){
-            rc = nsq_unbuffered_publish(secondary->sock, topic, msg, size);
-            if(rc < 0){
-                nsq_ucon_error(primary);
-            }
+            if(secondary->state == NSQ_CONNECTED){
+                rc = nsq_unbuffered_publish(secondary->sock, topic, msg, size);
+                if(rc < 0){
+                    nsq_ucon_error(primary);
+                }                
+            }else{return -2;}
         }
     }
     return rc;
@@ -298,7 +333,8 @@ int nsq_unbuffered_publish(int sock, char *topic, char *msg, int size){
     while(total_sent < n){
         rc = send(sock, b, n, MSG_NOSIGNAL);
         if(rc <= 0){
-            if(errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR){
+            if(errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR ||
+                errno == EINPROGRESS || errno == EALREADY){
                 continue;
             }
             _DEBUG("%s: error: %d\n", __FUNCTION__, errno);

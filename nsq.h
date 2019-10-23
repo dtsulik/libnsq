@@ -34,6 +34,7 @@ struct NSQDUnbufferedCon {
     struct ev_io read_ev;
     struct ev_loop *loop;
     struct ev_timer reconnect_timer;
+    double reconnect_interval;
     void *cbarg;
     void (*connect_callback)(struct NSQDUnbufferedCon *conn, void *arg);
     void (*error_callback)(struct NSQDUnbufferedCon *conn, void *arg);
@@ -41,7 +42,8 @@ struct NSQDUnbufferedCon {
 
 struct NSQDUnbufferedCon *nsq_new_unbuffered_pub(const char *address, int port,
     void (*connect_callback)(struct NSQDUnbufferedCon *ucon, void *cbarg),
-    void (*error_callback)(struct NSQDUnbufferedCon *ucon, void *cbarg), void *cbarg);
+    void (*error_callback)(struct NSQDUnbufferedCon *ucon, void *cbarg), void *cbarg,
+    double reconnect_interval);
 
 void nsq_ucon_reconnect(EV_P_ ev_timer *w, int revents);
 void nsq_pub_unbuffered_read_cb(EV_P_ struct ev_io *w, int revents);

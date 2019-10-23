@@ -40,7 +40,7 @@ test-lookupd: test.o libnsq.a
 	$(CC) -o $@ $^ $(LIBS)
 
 clean:
-	rm -rf libnsq.a test-nsqd test-lookupd test.dSYM *.o
+	rm -rf libnsq.a test-nsqd test-lookupd test.dSYM *.o core*
 
 .PHONY: install clean all test libnsq libevbuffsock
 
