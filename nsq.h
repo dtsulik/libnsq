@@ -81,6 +81,7 @@ struct NSQReader {
     char *channel;
     void *ctx; //context for call back
     int max_in_flight;
+    char *conn_cfg;
     struct NSQDConnection *conns;
     struct NSQDConnInfo *infos;
     struct NSQLookupdEndpoint *lookupd;
@@ -94,7 +95,7 @@ struct NSQReader {
 };
 
 struct NSQPublisher {
-    pthread_mutex_t *lock;
+    char *conn_cfg;
     char *topic;
     char *channel;
     void *ctx; //context for call back
@@ -114,6 +115,7 @@ struct NSQPublisher {
     void (*error_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn, void *arg);
     void (*async_write_callback)(struct BufferedSocket *buffsock, void *arg);
     void (*msg_callback)(struct NSQPublisher *pub, struct NSQDConnection *conn, struct NSQMessage *msg, void *ctx);
+    pthread_mutex_t *lock;
 };
 
 struct NSQReader *new_nsq_reader(struct ev_loop *loop, const char *topic, const char *channel, void *ctx,

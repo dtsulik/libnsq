@@ -122,6 +122,9 @@ void *reader(void *p){
         NULL, NULL, NULL, message_handler);
 
     rdr->max_in_flight = 50;
+    char config_json[] = {"{\"output_buffer_timeout\": -1}"};
+    rdr->conn_cfg = config_json;
+
     nsq_reader_connect_to_nsqd(rdr, host_str, 4150);
     // ev loop run
     nsq_run(loop);
@@ -160,10 +163,10 @@ int main(int argc, char **argv)
     // struct NSQPublisher *pub = NULL;
     // pthread_create(&t, &t_attr, puber, &pub);
 
-    pthread_create(&t, &t_attr, writer, NSQ_HOST);
+    // pthread_create(&t, &t_attr, writer, NSQ_HOST);
     // pthread_create(&t, &t_attr, writer, NSQ_HOST2);
 
-    // pthread_create(&t, &t_attr, reader, NSQ_HOST);
+    pthread_create(&t, &t_attr, reader, NSQ_HOST);
     // pthread_create(&t, &t_attr, reader, NSQ_HOST2);
 
     // printf("trying to delete topic\n");

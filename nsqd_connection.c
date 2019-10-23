@@ -19,6 +19,17 @@ static void nsqd_connection_connect_cb(struct BufferedSocket *buffsock, void *ar
     char buff[10] = "  V2";
     buffered_socket_write(conn->bs, (void *)buff, 4);
 
+    struct NSQReader *rdr = conn->arg;
+
+    if(rdr->conn_cfg){
+        char send_buff[2048] = {'\0'};
+        size_t n = snprintf(send_buff, 2048, "IDENTIFY\n");
+        uint32_t ordered = htobe32(strlen(rdr->conn_cfg));
+        memcpy(send_buff + n, &ordered, 4);
+        n += snprintf(send_buff + n + 4 , 2044 - n, "%s", rdr->conn_cfg);
+        buffered_socket_write(conn->bs, (void *)send_buff, n + 4);
+    }
+
     if (conn->connect_callback) {
         conn->connect_callback(conn, conn->arg);
     }
