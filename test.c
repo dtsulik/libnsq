@@ -90,8 +90,10 @@ static void pub_conn_handler(struct NSQDUnbufferedCon *ucon, void *arg)
 }
 
 void *writer(void *p){
-    struct NSQDUnbufferedCon *primary = nsq_new_unbuffered_pub(NSQ_LOCAL, 4150,
+    struct NSQDUnbufferedCon *primary = nsq_new_unbuffered_pub(NSQ_HOST, 4150,
         pub_conn_handler, pub_error_handler, NSQ_HOST);
+
+    printf("connected ? %p", primary);
 
     // struct NSQDUnbufferedCon *secondary = nsq_new_unbuffered_pub(NSQ_LOCAL, 4150,
     //     pub_conn_handler, pub_error_handler, NSQ_HOST2);
@@ -158,18 +160,18 @@ int main(int argc, char **argv)
     // struct NSQPublisher *pub = NULL;
     // pthread_create(&t, &t_attr, puber, &pub);
 
-    // pthread_create(&t, &t_attr, writer, NSQ_HOST);
+    pthread_create(&t, &t_attr, writer, NSQ_HOST);
     // pthread_create(&t, &t_attr, writer, NSQ_HOST2);
 
     // pthread_create(&t, &t_attr, reader, NSQ_HOST);
     // pthread_create(&t, &t_attr, reader, NSQ_HOST2);
 
-    printf("trying to delete topic\n");
-    int rc = nsq_delete_topic(NSQ_HOST, 4151, "spam");
-    if(rc < 0){
-        printf("error deleting topic\n");
-    }
-    printf("topic gone\n");
+    // printf("trying to delete topic\n");
+    // int rc = nsq_delete_topic(NSQ_HOST, 4151, "spam");
+    // if(rc < 0){
+    //     printf("error deleting topic\n");
+    // }
+    // printf("topic gone\n");
 
     printf("done\n");
     while(1){

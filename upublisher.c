@@ -116,8 +116,10 @@ void *nsq_new_unbuffered_pub_thr(void *p){
     ev_timer_start(ucon->loop, &ucon->reconnect_timer);
 
     ucon->read_ev.data = ucon;
-    ev_io_init(&ucon->read_ev, nsq_pub_unbuffered_read_cb, ucon->sock, EV_READ);
-    ev_io_start(ucon->loop, &ucon->read_ev);
+    if(ucon->sock > 0 && ucon->state == NSQ_CONNECTED){        
+        ev_io_init(&ucon->read_ev, nsq_pub_unbuffered_read_cb, ucon->sock, EV_READ);
+        ev_io_start(ucon->loop, &ucon->read_ev);
+    }
 
     srand(time(NULL));
     ev_loop(ucon->loop, 0);

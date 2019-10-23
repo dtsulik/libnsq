@@ -3,8 +3,8 @@ DESTDIR=
 LIBDIR=${PREFIX}/lib
 INCDIR=${PREFIX}/include
 
-#CFLAGS+=-g -Wall -O2 -DDEBUG -fPIC -pthread -I../INC
-CFLAGS+=-g -Wall -O2 -fPIC -pthread -I../INC
+CFLAGS+=-g -Wall -O2 -DDEBUG -fPIC -pthread -I../INC
+# CFLAGS+=-g -Wall -O2 -fPIC -pthread -I../INC
 LIBS=-L../lib -lev -levbuffsock -lcurl -lpthread
 AR=ar
 AR_FLAGS=rc
