@@ -14,8 +14,12 @@ void nsq_ucon_error(struct NSQDUnbufferedCon *ucon){
         return;
     }else{
         pthread_mutex_lock(&ucon->state_lock);
-        ev_io_stop(ucon->loop, &ucon->read_ev);
+        if(ev_is_active(&ucon->read_ev)){
+            ev_io_stop(ucon->loop, &ucon->read_ev);
+        }
+
         close(ucon->sock);
+        ucon->sock = -1;
         ucon->state = NSQ_DISCONNECTED;
         pthread_mutex_unlock(&ucon->state_lock);
     }
@@ -27,18 +31,22 @@ void nsq_ucon_error(struct NSQDUnbufferedCon *ucon){
 
 void nsq_ucon_reconnect(EV_P_ ev_timer *w, int revents){
     struct NSQDUnbufferedCon *ucon = (struct NSQDUnbufferedCon *)w->data;
-    _DEBUG("%s: %p - %d\n", __FUNCTION__, ucon, ucon->state);
+    _DEBUG("%s:%d: %p - %d\n", __FUNCTION__, __LINE__, ucon, ucon->state);
     if(!ucon || !(ucon->state == NSQ_DISCONNECTED)){
         return;
     }
 
     pthread_mutex_lock(&ucon->state_lock);
-
-    int rc = tcp_connect(ucon->address, ucon->port);
+    if(ucon->sock > 0){
+        close(ucon->sock);
+        ucon->sock = -1;
+    }
+    int rc = tcp_connect(ucon->address, ucon->port, ucon);
 
     if(rc <= 0){
-        _DEBUG("%s: %p - errno %d\n", __FUNCTION__, ucon, errno);
+        _DEBUG("%s:%d: %p - errno %d state %d\n", __FUNCTION__, __LINE__, ucon, errno, ucon->state);
     }else{
+        _DEBUG("%s:%d: set connected %d rc %d errno\n", __FUNCTION__, __LINE__, rc, errno);
         ucon->state = NSQ_CONNECTED;
         ucon->sock = rc;
         ucon->read_ev.data = ucon;
@@ -146,9 +154,9 @@ void *nsq_new_unbuffered_pub_thr(void *p){
     }
 
     srand(time(NULL));
-    _DEBUG("%s: starting ev loop\n", __FUNCTION__);
+    _DEBUG("%s: starting ev loop: %p\n", __FUNCTION__, p);
     ev_loop(ucon->loop, 0);
-    _DEBUG("%s: exiting ev loop\n", __FUNCTION__);
+    _DEBUG("%s: exiting ev loop: %p\n", __FUNCTION__, p);
     return NULL;
 }
 
@@ -178,36 +186,41 @@ struct NSQDUnbufferedCon *nsq_new_unbuffered_pub(const char *address, int port,
     pthread_mutex_init(&ucon->state_lock, NULL);
     ucon->state = NSQ_CONNECTING;
 
-    int rc = tcp_connect(address, port);
+    int rc = tcp_connect(address, port, ucon);
 
     if(rc <= 0){
         nsq_ucon_error(ucon);
     }else{
-        ucon->state = NSQ_CONNECTED;
-        ucon->sock = rc;
-        if(ucon->connect_callback){
-            ucon->connect_callback(ucon, ucon->cbarg);
+        if(errno != EINPROGRESS && errno != EALREADY){
+            _DEBUG("%s: set connected %d rc %d errno\n", __FUNCTION__, rc, errno);
+            ucon->state = NSQ_CONNECTED;
+            ucon->sock = rc;
+            if(ucon->connect_callback){
+                ucon->connect_callback(ucon, ucon->cbarg);
+            }
         }
     }
 
-    // send magic
-    char b[STACK_BUFFER_SIZE];
-    size_t n;
-    n = sprintf(b, "  V2");
+    if(ucon->state == NSQ_CONNECTED){
+        // send magic
+        char b[STACK_BUFFER_SIZE];
+        size_t n;
+        n = sprintf(b, "  V2");
 
-    int total_sent = 0;
-    rc = 0;
-    while(total_sent < n){
-        rc = send(ucon->sock, b, n, MSG_NOSIGNAL);
-        if(rc <= 0){
-            if(errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR ||
-                errno == EINPROGRESS || errno == EALREADY){
-                continue;
+        int total_sent = 0;
+        rc = 0;
+        while(total_sent < n){
+            rc = send(ucon->sock, b, n, MSG_NOSIGNAL);
+            if(rc <= 0){
+                if(errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR ||
+                    errno == EINPROGRESS || errno == EALREADY){
+                    continue;
+                }
+                nsq_ucon_error(ucon);
+                break;
+            }else{
+                total_sent += rc;
             }
-            nsq_ucon_error(ucon);
-            break;
-        }else{
-            total_sent += rc;
         }
     }
 
@@ -220,7 +233,7 @@ struct NSQDUnbufferedCon *nsq_new_unbuffered_pub(const char *address, int port,
     return ucon;
 }
 
-int tcp_connect(const char *address, int port){
+int tcp_connect(const char *address, int port, struct NSQDUnbufferedCon *ucon){
     int sock = -1, ret;
     struct addrinfo hints, *p, *dstinfo;
 
@@ -257,13 +270,15 @@ int tcp_connect(const char *address, int port){
     }
 
 retry:
-    if(connect(sock, dstinfo->ai_addr, dstinfo->ai_addrlen) == -1){
+    rc = connect(sock, dstinfo->ai_addr, dstinfo->ai_addrlen);
+    _DEBUG("%s: %p set connect rc:%d sock:%d errno:%d\n", __FUNCTION__, ucon, rc, sock, errno);
+    if(rc == -1){
         if(errno == 115 || errno == 114){
             goto retry;
         }else{
             close(sock);
             freeaddrinfo(dstinfo);
-            return -3;            
+            return -3;
         }
     }
 

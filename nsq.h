@@ -47,7 +47,7 @@ struct NSQDUnbufferedCon *nsq_new_unbuffered_pub(const char *address, int port,
 
 void nsq_ucon_reconnect(EV_P_ ev_timer *w, int revents);
 void nsq_pub_unbuffered_read_cb(EV_P_ struct ev_io *w, int revents);
-int tcp_connect(const char *address, int port);
+int tcp_connect(const char *address, int port, struct NSQDUnbufferedCon *ucon);
 int nsq_upub(struct NSQDUnbufferedCon *primary, struct NSQDUnbufferedCon *secondary, char *topic, char *msg, int size);
 int nsq_unbuffered_publish(int sock, char *topic, char *msg, int size);
 void free_unbuffered_pub(struct NSQDUnbufferedCon *ucon);
