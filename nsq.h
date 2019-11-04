@@ -89,6 +89,7 @@ struct NSQReader {
     struct NSQLookupdEndpoint *lookupd;
     struct ev_timer lookupd_poll_timer;
     struct ev_loop *loop;
+    struct ev_async breaker;
     struct NSQReaderCfg *cfg;
     void *httpc;
     void (*connect_callback)(struct NSQReader *rdr, struct NSQDConnection *conn);

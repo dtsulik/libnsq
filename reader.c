@@ -111,6 +111,10 @@ end:
     ev_timer_again(rdr->loop, &rdr->lookupd_poll_timer);
 }
 
+static void nsq_break_cb (EV_P_ ev_async *w, int revents){
+    ev_break(loop, EVBREAK_ALL);
+}
+
 struct NSQReader *new_nsq_reader(struct ev_loop *loop, const char *topic, const char *channel, void *ctx,
     struct NSQReaderCfg *cfg,
     void (*connect_callback)(struct NSQReader *rdr, struct NSQDConnection *conn),
@@ -153,6 +157,9 @@ struct NSQReader *new_nsq_reader(struct ev_loop *loop, const char *topic, const 
     rdr->lookupd = NULL;
     rdr->loop = loop;
 
+    ev_async_init(&rdr->breaker, nsq_break_cb);
+    ev_async_start(loop, &rdr->breaker);
+
     rdr->httpc = new_http_client(rdr->loop);
 
     return rdr;
@@ -175,6 +182,7 @@ void free_nsq_reader(struct NSQReader *rdr)
         free(rdr->topic);
         free(rdr->channel);
         free(rdr->cfg);
+        ev_async_send(rdr->loop, &rdr->breaker);
         free(rdr);
     }
 }

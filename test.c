@@ -113,23 +113,11 @@ void *writer(void *p){
     return NULL;
 }
 
+struct NSQReader *rdrglob = NULL;
 void *reader(void *p){
-    char *host_str = (char*)p;
-    struct NSQReader *rdr;
-
-    struct ev_loop *loop = ev_loop_new(0);
-
-    // reader
-    rdr = new_nsq_reader(loop, "spam", "ch", NULL,
-        NULL, NULL, NULL, message_handler);
-
-    rdr->max_in_flight = 50;
-    char config_json[] = {"{\"output_buffer_timeout\": -1}"};
-    rdr->conn_cfg = config_json;
-
-    nsq_reader_connect_to_nsqd(rdr, host_str, 4150);
-    // ev loop run
-    nsq_run(loop);
+    sleep(5);
+    printf("breaking loop\n");
+    free_nsq_reader(rdrglob);
     return NULL;
 }
 
@@ -148,6 +136,7 @@ void *puber(void *p){
 
     pub_p->max_in_flight = 50;
     pub_p->ctx = userdata;
+
     nsq_publisher_connect_to_nsqd(*pub, NSQ_HOST, 4150);
     // nsq_publisher_connect_to_nsqd(*pub, NSQ_HOST2, 4150);
     // ev loop run
@@ -165,10 +154,10 @@ int main(int argc, char **argv)
     // struct NSQPublisher *pub = NULL;
     // pthread_create(&t, &t_attr, puber, &pub);
 
-    pthread_create(&t, &t_attr, writer, NSQ_HOST);
+    // pthread_create(&t, &t_attr, writer, NSQ_HOST);
     // pthread_create(&t, &t_attr, writer, NSQ_HOST2);
 
-    // pthread_create(&t, &t_attr, reader, NSQ_HOST);
+    pthread_create(&t, &t_attr, reader, NSQ_HOST);
     // pthread_create(&t, &t_attr, reader, NSQ_HOST2);
 
     // printf("trying to delete topic\n");
@@ -178,8 +167,25 @@ int main(int argc, char **argv)
     // }
     // printf("topic gone\n");
 
-    while(1){
-        sleep(5);
-    }
+
+    struct NSQReader *rdr;
+
+    struct ev_loop *loop = ev_loop_new(0);
+
+    // reader
+    rdr = new_nsq_reader(loop, "spam", "ch", NULL,
+        NULL, NULL, NULL, message_handler);
+
+    rdrglob = rdr;
+    rdr->max_in_flight = 50;
+    char config_json[] = {"{\"output_buffer_timeout\": -1}"};
+    rdr->conn_cfg = config_json;
+
+    nsq_reader_connect_to_nsqd(rdr, NSQ_HOST, 4150);
+    // ev loop run
+    nsq_run(loop);
+    printf("reader done\n");
+    ev_loop_destroy(loop);
+
     return 0;
 }
