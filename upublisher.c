@@ -226,9 +226,15 @@ struct NSQDUnbufferedCon *nsq_new_unbuffered_pub(const char *address, int port,
     pthread_attr_t t_attr;
     pthread_attr_init(&t_attr);
     pthread_attr_setdetachstate(&t_attr, PTHREAD_CREATE_DETACHED);
-    pthread_create(&t, &t_attr, nsq_new_unbuffered_pub_thr, ucon);
+    int trc = pthread_create(&t, &t_attr, nsq_new_unbuffered_pub_thr, ucon);
+    pthread_setname_np(&t, "NSQ Publisher");
 
-    return ucon;
+    if(trc == 0){
+        return ucon;
+    }else{
+        free(ucon);
+        return NULL;
+    }
 }
 
 int tcp_connect(const char *address, int port, struct NSQDUnbufferedCon *ucon){
