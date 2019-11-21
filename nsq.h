@@ -5,8 +5,8 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <time.h>
-#include "ev.h"
-#include "evbuffsock.h"
+#include <ev.h>
+#include <evbuffsock.h>
 #include <pthread.h>
 
 #include "utlist.h"

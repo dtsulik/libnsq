@@ -1,7 +1,7 @@
 #ifndef __http_h
 #define __http_h
 
-#include "ev.h"
+#include <ev.h>
 #include <curl/curl.h>
 
 struct HttpClient {
