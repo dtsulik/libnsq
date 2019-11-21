@@ -12,7 +12,7 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <sys/ioctl.h>
-#include <ev.h>
+#include "ev.h"
 
 #define EVBUFFSOCK_VERSION "0.1.1"
 
