@@ -8,7 +8,8 @@
 #endif
 
 #define NSQ_LOCAL "127.0.0.1"
-#define NSQ_HOST "10.10.134.124"
+// #define NSQ_HOST "10.10.134.124"
+#define NSQ_HOST "1.1.1.1"
 #define NSQ_HOST2 "10.10.134.237"
 #define NS 1000000000
 
@@ -93,18 +94,17 @@ void *writer(void *p){
     struct NSQDUnbufferedCon *primary = nsq_new_unbuffered_pub(NSQ_HOST, 4150,
         pub_conn_handler, pub_error_handler, NSQ_HOST, 1.);
 
-    printf("connected ? %p", primary);
+    printf("connected ? %p %s", primary, NSQ_HOST);
 
     // struct NSQDUnbufferedCon *secondary = nsq_new_unbuffered_pub(NSQ_LOCAL, 4150,
     //     pub_conn_handler, pub_error_handler, NSQ_HOST2);
-
     int i;
     struct timespec s;
     s.tv_sec = 0;
     s.tv_nsec = 1000000;
     for(i = 0; i < 10000; i++){
         int rc = nsq_upub(primary, NULL, "spam", "pingpong", 8);
-        printf("rc = %d\n", rc);
+        // printf("rc = %d\n", rc);
         nanosleep(&s, NULL);
     }
 
@@ -154,10 +154,10 @@ int main(int argc, char **argv)
     // struct NSQPublisher *pub = NULL;
     // pthread_create(&t, &t_attr, puber, &pub);
 
-    // pthread_create(&t, &t_attr, writer, NSQ_HOST);
+    pthread_create(&t, &t_attr, writer, "1.1.1.1");
     // pthread_create(&t, &t_attr, writer, NSQ_HOST2);
 
-    pthread_create(&t, &t_attr, reader, NSQ_HOST);
+    // pthread_create(&t, &t_attr, reader, NSQ_HOST);
     // pthread_create(&t, &t_attr, reader, NSQ_HOST2);
 
     // printf("trying to delete topic\n");
@@ -168,24 +168,28 @@ int main(int argc, char **argv)
     // printf("topic gone\n");
 
 
-    struct NSQReader *rdr;
+    // struct NSQReader *rdr;
 
-    struct ev_loop *loop = ev_loop_new(0);
+    // struct ev_loop *loop = ev_loop_new(0);
 
-    // reader
-    rdr = new_nsq_reader(loop, "spam", "ch", NULL,
-        NULL, NULL, NULL, message_handler);
+    // // reader
+    // rdr = new_nsq_reader(loop, "spam", "ch", NULL,
+    //     NULL, NULL, NULL, message_handler);
 
-    rdrglob = rdr;
-    rdr->max_in_flight = 50;
-    char config_json[] = {"{\"output_buffer_timeout\": -1}"};
-    rdr->conn_cfg = config_json;
+    // rdrglob = rdr;
+    // rdr->max_in_flight = 50;
+    // char config_json[] = {"{\"output_buffer_timeout\": -1}"};
+    // rdr->conn_cfg = config_json;
 
-    nsq_reader_connect_to_nsqd(rdr, NSQ_HOST, 4150);
-    // ev loop run
-    nsq_run(loop);
-    printf("reader done\n");
-    ev_loop_destroy(loop);
+    // nsq_reader_connect_to_nsqd(rdr, NSQ_HOST, 4150);
+    // // ev loop run
+    // nsq_run(loop);
+    // printf("reader done\n");
+    // ev_loop_destroy(loop);
 
+
+    while(1){
+        sleep(1);
+    }
     return 0;
 }

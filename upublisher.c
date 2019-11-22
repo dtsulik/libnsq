@@ -281,9 +281,15 @@ int tcp_connect(const char *address, int port, struct NSQDUnbufferedCon *ucon){
         return 0;
     }
 
+    time_t start = time(NULL);
 retry:
+    if((time(NULL) - start) > 1){
+        close(sock);
+        freeaddrinfo(dstinfo);
+        return -9;
+    }
     rc = connect(sock, dstinfo->ai_addr, dstinfo->ai_addrlen);
-    _DEBUG("%s: %p set connect rc:%d sock:%d errno:%d\n", __FUNCTION__, ucon, rc, sock, errno);
+    _DEBUG("%s: %p set connect rc:%d sock:%d errno:%d start %ld now %ld\n", __FUNCTION__, ucon, rc, sock, errno, start, time(NULL));
     if(rc == -1){
         if(errno == 115 || errno == 114){
             goto retry;
