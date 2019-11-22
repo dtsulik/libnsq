@@ -142,6 +142,7 @@ error:
 
 void *nsq_new_unbuffered_pub_thr(void *p){
     struct NSQDUnbufferedCon *ucon = (struct NSQDUnbufferedCon *)p;
+    ucon->loop = ev_loop_new(0);
 
     ucon->reconnect_timer.data = ucon;
     ev_timer_init(&ucon->reconnect_timer, nsq_ucon_reconnect, ucon->reconnect_interval, ucon->reconnect_interval);
@@ -178,7 +179,6 @@ struct NSQDUnbufferedCon *nsq_new_unbuffered_pub(const char *address, int port,
     ucon->cbarg = cbarg;
     snprintf(ucon->address, 127, "%s", address);
     ucon->port = port;
-    ucon->loop = ev_loop_new(0);
     ucon->reconnect_interval = reconnect_interval;
 
     pthread_mutex_init(&ucon->state_lock, NULL);
@@ -189,7 +189,15 @@ struct NSQDUnbufferedCon *nsq_new_unbuffered_pub(const char *address, int port,
     if(rc <= 0){
         nsq_ucon_error(ucon);
     }else{
-        if(errno != EINPROGRESS && errno != EALREADY){
+        int optval = 0;
+        size_t optsz = sizeof(optval);
+        int erc = getsockopt(rc, SOL_SOCKET, SO_ERROR, &optval, &optsz);
+        if(erc < 0){
+            free(ucon);
+            return -8;
+        }
+        _DEBUG("%s: sock error %d rc %d errno\n", __FUNCTION__, erc, errno);
+        if(optval != EINPROGRESS && optval != EALREADY){
             _DEBUG("%s: set connected %d rc %d errno\n", __FUNCTION__, rc, errno);
             ucon->state = NSQ_CONNECTED;
             ucon->sock = rc;
