@@ -164,6 +164,7 @@ void *nsq_new_unbuffered_pub_thr(void *p){
 void free_unbuffered_pub(struct NSQDUnbufferedCon *ucon){
     ev_timer_stop(ucon->loop, &ucon->reconnect_timer);
     ev_io_stop(ucon->loop, &ucon->read_ev);
+    ev_break(ucon->loop, EVBREAK_ALL);
     close(ucon->sock);
     sleep(2);
     free(ucon);
