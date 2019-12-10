@@ -196,7 +196,7 @@ struct NSQDUnbufferedCon *nsq_new_unbuffered_pub(const char *address, int port,
         int erc = getsockopt(rc, SOL_SOCKET, SO_ERROR, &optval, &optsz);
         if(erc < 0){
             free(ucon);
-            return -8;
+            return NULL;
         }
         _DEBUG("%s: sock error %d rc %d errno\n", __FUNCTION__, erc, errno);
         if(optval != EINPROGRESS && optval != EALREADY){
