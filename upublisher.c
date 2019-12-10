@@ -144,7 +144,7 @@ error:
 
 void *nsq_new_unbuffered_pub_thr(void *p){
     struct NSQDUnbufferedCon *ucon = (struct NSQDUnbufferedCon *)p;
-    ucon->loop = ev_loop_new(0);
+    ucon->loop = ev_loop_new(EVBACKEND_SELECT);
 
     ucon->read_ev.data = ucon;
     if(ucon->sock > 0 && ucon->state == NSQ_CONNECTED){        
