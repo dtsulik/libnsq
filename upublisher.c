@@ -330,7 +330,7 @@ int nsq_upub(struct NSQDUnbufferedCon *primary, struct NSQDUnbufferedCon *second
                     nsq_ucon_error(primary);
                 }
                 return rc;
-            }else{return -1;}
+            }
         }
         if(rc < 0){
             if(secondary->state == NSQ_CONNECTED){
