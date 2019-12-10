@@ -285,7 +285,7 @@ int tcp_connect(const char *address, int port, struct NSQDUnbufferedCon *ucon){
 
     time_t start = time(NULL);
 retry:
-    if((time(NULL) - start) > 1){
+    if((time(NULL) - start) > 2){
         close(sock);
         freeaddrinfo(dstinfo);
         return -9;
@@ -294,6 +294,7 @@ retry:
     _DEBUG("%s: %p set connect rc:%d sock:%d errno:%d start %ld now %ld\n", __FUNCTION__, ucon, rc, sock, errno, start, time(NULL));
     if(rc == -1){
         if(errno == 115 || errno == 114){
+            usleep(200000);
             goto retry;
         }else{
             close(sock);
