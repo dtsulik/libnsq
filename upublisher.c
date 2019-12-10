@@ -41,10 +41,12 @@ void nsq_ucon_reconnect(EV_P_ ev_timer *w, int revents){
         close(ucon->sock);
         ucon->sock = -1;
     }
+    ucon->state = NSQ_CONNECTING;
     int rc = tcp_connect(ucon->address, ucon->port, ucon);
 
     if(rc <= 0){
         _DEBUG("%s:%d: %p - errno %d state %d\n", __FUNCTION__, __LINE__, ucon, errno, ucon->state);
+        ucon->state = NSQ_DISCONNECTED;
     }else{
         _DEBUG("%s:%d: set connected %d rc %d errno\n", __FUNCTION__, __LINE__, rc, errno);
         ucon->state = NSQ_CONNECTED;
