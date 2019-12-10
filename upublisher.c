@@ -144,15 +144,15 @@ void *nsq_new_unbuffered_pub_thr(void *p){
     struct NSQDUnbufferedCon *ucon = (struct NSQDUnbufferedCon *)p;
     ucon->loop = ev_loop_new(0);
 
-    ucon->reconnect_timer.data = ucon;
-    ev_timer_init(&ucon->reconnect_timer, nsq_ucon_reconnect, ucon->reconnect_interval, ucon->reconnect_interval);
-    ev_timer_start(ucon->loop, &ucon->reconnect_timer);
-
     ucon->read_ev.data = ucon;
     if(ucon->sock > 0 && ucon->state == NSQ_CONNECTED){        
         ev_io_init(&ucon->read_ev, nsq_pub_unbuffered_read_cb, ucon->sock, EV_READ);
         ev_io_start(ucon->loop, &ucon->read_ev);
     }
+
+    ucon->reconnect_timer.data = ucon;
+    ev_timer_init(&ucon->reconnect_timer, nsq_ucon_reconnect, ucon->reconnect_interval, ucon->reconnect_interval);
+    ev_timer_start(ucon->loop, &ucon->reconnect_timer);
 
     srand(time(NULL));
     _DEBUG("%s: starting ev loop: %p\n", __FUNCTION__, p);
