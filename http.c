@@ -7,6 +7,10 @@
 #define _DEBUG(...) do {;} while (0)
 #endif
 
+/*
+ * unused
+ */
+
 static void timer_cb(EV_P_ struct ev_timer *w, int revents);
 
 static int multi_timer_cb(CURLM *multi, long timeout_ms, void *arg)

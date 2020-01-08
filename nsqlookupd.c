@@ -8,6 +8,10 @@
 #define _DEBUG(...) do {;} while (0)
 #endif
 
+/*
+ * unused
+ */
+
 void nsq_lookupd_request_cb(struct HttpRequest *req, struct HttpResponse *resp, void *arg)
 {
     struct NSQReader *rdr = (struct NSQReader *)arg;

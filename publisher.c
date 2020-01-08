@@ -12,6 +12,10 @@
 #define STACK_BUFFER_SIZE 1024
 #define SPINLOCKNS  10000000
 
+/*
+ * callback function called after tcp connection to nsqd is established
+ */
+
 static void nsq_publisher_connect_cb(struct NSQDConnection *conn, void *arg)
 {
     struct NSQPublisher *pub = (struct NSQPublisher *)arg;
@@ -22,6 +26,10 @@ static void nsq_publisher_connect_cb(struct NSQDConnection *conn, void *arg)
         pub->connect_callback(pub, conn);
     }
 }
+
+/*
+ * callback function called if an error occurs during data transfer
+ */
 
 static void nsq_publisher_error_cb(struct NSQDConnection *conn, void *arg)
 {
@@ -34,6 +42,10 @@ static void nsq_publisher_error_cb(struct NSQDConnection *conn, void *arg)
     }
 }
 
+/*
+ * callback function called for each successfull msg sent
+ */
+
 static void nsq_publisher_success_cb(struct NSQDConnection *conn, void *arg)
 {
     struct NSQPublisher *pub = (struct NSQPublisher *)arg;
@@ -44,6 +56,10 @@ static void nsq_publisher_success_cb(struct NSQDConnection *conn, void *arg)
         pub->success_callback(pub, conn, pub->success_callback_arg);
     }
 }
+
+/*
+ * callback function called for each msg recvd
+ */
 
 static void nsq_publisher_msg_cb(struct NSQDConnection *conn, struct NSQMessage *msg, void *arg)
 {
@@ -56,6 +72,10 @@ static void nsq_publisher_msg_cb(struct NSQDConnection *conn, struct NSQMessage 
         pub->msg_callback(pub, conn, msg, pub->ctx);
     }
 }
+
+/*
+ * callback function called when connection is closed
+ */
 
 static void nsq_publisher_close_cb(struct NSQDConnection *conn, void *arg)
 {
@@ -83,7 +103,15 @@ static void nsq_publisher_close_cb(struct NSQDConnection *conn, void *arg)
     pthread_mutex_unlock(pub->lock);
 }
 
+/*
+ * unused
+ */
+
 void nsq_lookupd_request_cb(struct HttpRequest *req, struct HttpResponse *resp, void *arg);
+
+/*
+ * callback function called when connection is closed
+ */
 
 static void nsq_publisher_reconnect_cb(EV_P_ struct ev_timer *w, int revents)
 {
@@ -98,10 +126,18 @@ static void nsq_publisher_reconnect_cb(EV_P_ struct ev_timer *w, int revents)
     free_nsqd_connection(conn);
 }
 
+/*
+ * callback function for curl
+ */
+
 size_t nsq_delete_topic_wr_cb(char *ptr, size_t size, size_t nmemb, void *arg)
 {
     return size * nmemb;
 }
+
+/*
+ * delete nsq topic
+ */
 
 int nsq_delete_topic(char *address, int port, char *topic)
 {
@@ -141,6 +177,10 @@ int nsq_delete_topic(char *address, int port, char *topic)
     return rc;
 }
 
+/*
+ * unused
+ */
+
 static void nsq_publisher_lookupd_poll_cb(EV_P_ struct ev_timer *w, int revents)
 {
     struct NSQPublisher *pub = (struct NSQPublisher *)w->data;
@@ -173,6 +213,17 @@ static void nsq_publisher_lookupd_poll_cb(EV_P_ struct ev_timer *w, int revents)
 end:
     ev_timer_again(pub->loop, &pub->lookupd_poll_timer);
 }
+
+/*
+ * creates nsq publisher connection object and assigns user defined callback functions
+ *
+ * connect_callback - will be called when connection is established
+ * close_callback - will be called when connection is closed
+ * success_callback - will be called when msg is sent
+ * error_callback - will be called for all errors
+ * async_write_callback - will be called when async write event is triggered by user for sending data
+ * msg_callback - will be called for all msg es recvd on connection
+ */
 
 struct NSQPublisher *new_nsq_publisher(struct ev_loop *loop, const char *topic, const char *channel, void *ctx,
     struct NSQPublisherCfg *cfg,
@@ -230,6 +281,10 @@ struct NSQPublisher *new_nsq_publisher(struct ev_loop *loop, const char *topic, 
     return pub;
 }
 
+/*
+ * free nsq publisher connection
+ */
+
 void free_nsq_publisher(struct NSQPublisher *pub)
 {
     struct NSQDConnection *conn;
@@ -250,6 +305,10 @@ void free_nsq_publisher(struct NSQPublisher *pub)
         free(pub);
     }
 }
+
+/*
+ * unused
+ */
 
 int nsq_publisher_add_nsqlookupd_endpoint(struct NSQPublisher *pub, const char *address, int port)
 {
@@ -272,6 +331,10 @@ int nsq_publisher_add_nsqlookupd_endpoint(struct NSQPublisher *pub, const char *
 
     return 1;
 }
+
+/*
+ * connect to nsqd using buffered socket
+ */
 
 int nsq_publisher_connect_to_nsqd(struct NSQPublisher *pub, const char *address, int port)
 {
@@ -297,6 +360,10 @@ int nsq_publisher_connect_to_nsqd(struct NSQPublisher *pub, const char *address,
 
     return rc;
 }
+
+/*
+ * publish any msg es in the connection buffer
+ */
 
 int nsq_publisher_pub(struct NSQPublisher *pub)
 {

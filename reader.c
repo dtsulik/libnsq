@@ -8,6 +8,10 @@
 #define _DEBUG(...) do {;} while (0)
 #endif
 
+/*
+ * callback function called when reader object finishes tcp connection
+ */
+
 static void nsq_reader_connect_cb(struct NSQDConnection *conn, void *arg)
 {
     struct NSQReader *rdr = (struct NSQReader *)arg;
@@ -29,6 +33,10 @@ static void nsq_reader_connect_cb(struct NSQDConnection *conn, void *arg)
     buffered_socket_write_buffer(conn->bs, conn->command_buf);
 }
 
+/*
+ * callback function called when reader object receives message
+ */
+
 static void nsq_reader_msg_cb(struct NSQDConnection *conn, struct NSQMessage *msg, void *arg)
 {
     struct NSQReader *rdr = (struct NSQReader *)arg;
@@ -40,6 +48,10 @@ static void nsq_reader_msg_cb(struct NSQDConnection *conn, struct NSQMessage *ms
         rdr->msg_callback(rdr, conn, msg, rdr->ctx);
     }
 }
+
+/*
+ * callback function called when reader object closes the connection
+ */
 
 static void nsq_reader_close_cb(struct NSQDConnection *conn, void *arg)
 {
@@ -78,6 +90,10 @@ static void nsq_reader_reconnect_cb(EV_P_ struct ev_timer *w, int revents)
     free_nsqd_connection(conn);
 }
 
+/*
+ * unused
+ */
+
 static void nsq_reader_lookupd_poll_cb(EV_P_ struct ev_timer *w, int revents)
 {
     struct NSQReader *rdr = (struct NSQReader *)w->data;
@@ -111,9 +127,21 @@ end:
     ev_timer_again(rdr->loop, &rdr->lookupd_poll_timer);
 }
 
+/*
+ * break the ev loop stop the reader
+ */
+
 static void nsq_break_cb (EV_P_ ev_async *w, int revents){
     ev_break(loop, EVBREAK_ALL);
 }
+
+/*
+ * create new nsq reader object and assign user defined callback functions
+ *
+ * connect_callback - will be called when connection is established
+ * close_callback - will be called when connection is closed
+ * msg_callback - will be called for all msg es recvd on connection
+ */
 
 struct NSQReader *new_nsq_reader(struct ev_loop *loop, const char *topic, const char *channel, void *ctx,
     struct NSQReaderCfg *cfg,
@@ -165,6 +193,10 @@ struct NSQReader *new_nsq_reader(struct ev_loop *loop, const char *topic, const 
     return rdr;
 }
 
+/*
+ * close connection and free respective objects
+ */
+
 void free_nsq_reader(struct NSQReader *rdr)
 {
     struct NSQDConnection *conn;
@@ -187,6 +219,10 @@ void free_nsq_reader(struct NSQReader *rdr)
     }
 }
 
+/*
+ * unused
+ */
+
 int nsq_reader_add_nsqlookupd_endpoint(struct NSQReader *rdr, const char *address, int port)
 {
     struct NSQLookupdEndpoint *nsqlookupd_endpoint;
@@ -208,6 +244,10 @@ int nsq_reader_add_nsqlookupd_endpoint(struct NSQReader *rdr, const char *addres
 
     return 1;
 }
+
+/*
+ * connect to nsqd with buffered socket
+ */
 
 int nsq_reader_connect_to_nsqd(struct NSQReader *rdr, const char *address, int port)
 {

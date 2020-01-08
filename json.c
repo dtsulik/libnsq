@@ -9,6 +9,10 @@ nsq_json_tokener_t *nsq_json_tokener_new()
 #endif
 }
 
+/*
+ * unused
+ */
+
 void nsq_json_tokener_free(nsq_json_tokener_t *jstok)
 {
 #ifndef WITH_JANSSON

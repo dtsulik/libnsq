@@ -9,6 +9,10 @@
 static void nsqd_connection_read_size(struct BufferedSocket *buffsock, void *arg);
 static void nsqd_connection_read_data(struct BufferedSocket *buffsock, void *arg);
 
+/*
+ * callback function called after tcp connection to nsqd is established
+ */
+
 static void nsqd_connection_connect_cb(struct BufferedSocket *buffsock, void *arg)
 {
     struct NSQDConnection *conn = (struct NSQDConnection *)arg;
@@ -37,6 +41,17 @@ static void nsqd_connection_connect_cb(struct BufferedSocket *buffsock, void *ar
     buffered_socket_read_bytes(buffsock, 4, nsqd_connection_read_size, conn);
 }
 
+/*
+ * reads size field from nsq packet
+ * nsq packet has following format
+ *
+ *  [x][x][x][x][x][x][x][x][x][x][x][x]...
+ * |  (int32) ||  (int32) || (binary)
+ * |  4-byte  ||  4-byte  || N-byte
+ * ------------------------------------...
+ *     size     frame type     data
+ */
+
 static void nsqd_connection_read_size(struct BufferedSocket *buffsock, void *arg)
 {
     struct NSQDConnection *conn = (struct NSQDConnection *)arg;
@@ -54,6 +69,17 @@ static void nsqd_connection_read_size(struct BufferedSocket *buffsock, void *arg
 
     buffered_socket_read_bytes(buffsock, conn->current_msg_size, nsqd_connection_read_data, conn);
 }
+
+/*
+ * reads data part from nsq packet
+ * nsq packet has following format
+ *
+ *  [x][x][x][x][x][x][x][x][x][x][x][x]...
+ * |  (int32) ||  (int32) || (binary)
+ * |  4-byte  ||  4-byte  || N-byte
+ * ------------------------------------...
+ *     size     frame type     data
+ */
 
 static void nsqd_connection_read_data(struct BufferedSocket *buffsock, void *arg)
 {
@@ -91,13 +117,17 @@ static void nsqd_connection_read_data(struct BufferedSocket *buffsock, void *arg
             if (conn->msg_callback) {
                 conn->msg_callback(conn, msg, conn->arg);
             }
-            break;            
+            break;
     }
 
     buffer_drain(buffsock->read_buf, conn->current_msg_size);
 
     buffered_socket_read_bytes(buffsock, 4, nsqd_connection_read_size, conn);
 }
+
+/*
+ * callback function called after tcp connection to nsqd is closed
+ */
 
 static void nsqd_connection_close_cb(struct BufferedSocket *buffsock, void *arg)
 {
@@ -110,6 +140,10 @@ static void nsqd_connection_close_cb(struct BufferedSocket *buffsock, void *arg)
     }
 }
 
+/*
+ * callback function called if an error occurs during data transfer
+ */
+
 static void nsqd_connection_error_cb(struct BufferedSocket *buffsock, void *arg)
 {
     struct NSQDConnection *conn = (struct NSQDConnection *)arg;
@@ -119,6 +153,10 @@ static void nsqd_connection_error_cb(struct BufferedSocket *buffsock, void *arg)
 
     _DEBUG("%s: conn %p\n", __FUNCTION__, conn);
 }
+
+/*
+ * creates new nsq reader connection object and assigns user defined callback functions
+ */
 
 struct NSQDConnection *new_nsqd_connection(struct ev_loop *loop, const char *address, int port,
     void (*connect_callback)(struct NSQDConnection *conn, void *arg),
@@ -150,6 +188,17 @@ struct NSQDConnection *new_nsqd_connection(struct ev_loop *loop, const char *add
 
     return conn;
 }
+
+/*
+ * creates new nsq publisher connection object and assigns user defined callback functions
+ *
+ * connect_callback - will be called when connection is established
+ * close_callback - will be called when connection is closed
+ * success_callback - will be called when msg is sent
+ * error_callback - will be called for all errors
+ * async_write_callback - will be called when async write event is triggered by user for sending data
+ * msg_callback - will be called for all msg es recvd on connection
+ */
 
 struct NSQDConnection *new_nsqd_pub_connection(struct ev_loop *loop, const char *address, int port,
     void (*connect_callback)(struct NSQDConnection *conn, void *arg),
@@ -200,6 +249,10 @@ struct NSQDConnection *new_nsqd_pub_connection(struct ev_loop *loop, const char 
     return conn;
 }
 
+/*
+ * free nsq connection
+ */
+
 void free_nsqd_connection(struct NSQDConnection *conn)
 {
     if (conn) {
@@ -211,6 +264,10 @@ void free_nsqd_connection(struct NSQDConnection *conn)
     }
 }
 
+/*
+ * connect to nsq with buffered socket
+ */
+
 int nsqd_connection_connect(struct NSQDConnection *conn)
 {
     return buffered_socket_connect(conn->bs);
@@ -220,6 +277,10 @@ void nsqd_connection_disconnect(struct NSQDConnection *conn)
 {
     buffered_socket_close(conn->bs);
 }
+
+/*
+ * start reconnect timer.
+ */
 
 void nsqd_connection_init_timer(struct NSQDConnection *conn,
         void (*reconnect_callback)(EV_P_ ev_timer *w, int revents))
@@ -237,6 +298,10 @@ void nsqd_connection_stop_timer(struct NSQDConnection *conn)
         free(conn->reconnect_timer);
     }
 }
+
+/*
+ * runs main event loop.ev_loop() function blocks;
+ */
 
 void nsq_run(struct ev_loop *loop)
 {

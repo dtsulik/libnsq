@@ -8,6 +8,10 @@
 #define _DEBUG(...) do {;} while (0)
 #endif
 
+/*
+ * called when error occurs during connection or data transfer
+ */
+
 void nsq_ucon_error(struct NSQDUnbufferedCon *ucon){
     _DEBUG("%s: %p errno %d\n", __FUNCTION__, ucon, errno);
     if(!ucon){
@@ -28,6 +32,10 @@ void nsq_ucon_error(struct NSQDUnbufferedCon *ucon){
         ucon->error_callback(ucon, ucon->cbarg);
     }
 }
+
+/*
+ * this function is called at constant intervals to check connection state and reconnect if needed
+ */
 
 void nsq_ucon_reconnect(EV_P_ ev_timer *w, int revents){
     struct NSQDUnbufferedCon *ucon = (struct NSQDUnbufferedCon *)w->data;
@@ -82,6 +90,10 @@ void nsq_ucon_reconnect(EV_P_ ev_timer *w, int revents){
     }
     pthread_mutex_unlock(&ucon->state_lock);
 }
+
+/*
+ * callback function to read data from socket whenever read event is received
+ */
 
 void nsq_pub_unbuffered_read_cb(EV_P_ struct ev_io *w, int revents){
     struct NSQDUnbufferedCon *ucon = w->data;
@@ -142,12 +154,16 @@ error:
     nsq_ucon_error(ucon);
 }
 
+/*
+ * create new nsq publisher thread. it is using unbuffered socket
+ */
+
 void *nsq_new_unbuffered_pub_thr(void *p){
     struct NSQDUnbufferedCon *ucon = (struct NSQDUnbufferedCon *)p;
     ucon->loop = ev_loop_new(EVBACKEND_SELECT);
 
     ucon->read_ev.data = ucon;
-    if(ucon->sock > 0 && ucon->state == NSQ_CONNECTED){        
+    if(ucon->sock > 0 && ucon->state == NSQ_CONNECTED){
         ev_io_init(&ucon->read_ev, nsq_pub_unbuffered_read_cb, ucon->sock, EV_READ);
         ev_io_start(ucon->loop, &ucon->read_ev);
     }
@@ -163,6 +179,10 @@ void *nsq_new_unbuffered_pub_thr(void *p){
     return NULL;
 }
 
+/*
+ * close connecton and free unbuffered publisher objects
+ */
+
 void free_unbuffered_pub(struct NSQDUnbufferedCon *ucon){
     ev_timer_stop(ucon->loop, &ucon->reconnect_timer);
     ev_io_stop(ucon->loop, &ucon->read_ev);
@@ -171,6 +191,13 @@ void free_unbuffered_pub(struct NSQDUnbufferedCon *ucon){
     sleep(2);
     free(ucon);
 }
+
+/*
+ * create new nsq unbuffered publisher object and assign user defined callback functions
+ *
+ * connect_callback - will be called when connection is established
+ * error_callback - will be called for all errors
+ */
 
 struct NSQDUnbufferedCon *nsq_new_unbuffered_pub(const char *address, int port,
     void (*connect_callback)(struct NSQDUnbufferedCon *ucon, void *cbarg),
@@ -249,6 +276,10 @@ struct NSQDUnbufferedCon *nsq_new_unbuffered_pub(const char *address, int port,
     }
 }
 
+/*
+ * connect to a host using tcp
+ */
+
 int tcp_connect(const char *address, int port, struct NSQDUnbufferedCon *ucon){
     int sock = -1, ret;
     struct addrinfo hints, *p, *dstinfo;
@@ -309,6 +340,11 @@ retry:
     return sock;
 }
 
+/*
+ * publish a message using primary and secondary connections.
+ * first primary is attempted then secondary
+ */
+
 int nsq_upub(struct NSQDUnbufferedCon *primary, struct NSQDUnbufferedCon *secondary, char *topic, char *msg, int size){
     int rc = -1;
     _DEBUG("%s: topic: %s msg: %s size: %d\n", __FUNCTION__, topic, msg, size);
@@ -337,12 +373,16 @@ int nsq_upub(struct NSQDUnbufferedCon *primary, struct NSQDUnbufferedCon *second
                 rc = nsq_unbuffered_publish(secondary->sock, topic, msg, size);
                 if(rc < 0){
                     nsq_ucon_error(primary);
-                }                
+                }
             }else{return -2;}
         }
     }
     return rc;
 }
+
+/*
+ * publish a message on a connected socket
+ */
 
 int nsq_unbuffered_publish(int sock, char *topic, char *msg, int size){
     int rc = -1;

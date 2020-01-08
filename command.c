@@ -4,6 +4,10 @@
 const static char * NEW_LINE = "\n";
 const static int MAX_BUF_SIZE = 128;
 
+/*
+ * all functions here send string commands over TCP connection to nsq server
+ */
+
 void nsq_subscribe(struct Buffer *buf, const char *topic, const char *channel)
 {
     char b[MAX_BUF_SIZE];

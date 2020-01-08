@@ -13,6 +13,21 @@ uint64_t ntoh64(const uint8_t *data) {
         (uint64_t)(data[1])<<48 | (uint64_t)(data[0])<<56;
 }
 
+/*
+ * nsq msg has following format:
+ *
+ * [x][x][x][x][x][x][x][x][x][x][x][x][x][x][x][x][x][x][x][x][x][x][x][x][x][x][x][x][x][x]...
+ * |       (int64)        ||    ||      (hex string encoded in ASCII)           || (binary)
+ * |       8-byte         ||    ||                 16-byte                      || N-byte
+ * ------------------------------------------------------------------------------------------...
+ *   nanosecond timestamp    ^^                   message ID                       message body
+ *                        (uint16)
+ *                         2-byte
+ *                        attempts
+ *
+ */
+
+
 struct NSQMessage *nsq_decode_message(const char *data, size_t data_length)
 {
     struct NSQMessage *msg;
@@ -29,6 +44,10 @@ struct NSQMessage *nsq_decode_message(const char *data, size_t data_length)
 
     return msg;
 }
+
+/*
+ * free previously allocated nsq msg
+ */
 
 void free_nsq_message(struct NSQMessage *msg)
 {
